@@ -1,0 +1,460 @@
+---
+title: "Extreme Precip Analysis or a Grid over a Raster Grid Original Product"
+output: html_notebook
+---
+
+
+
+Processing for Max Precip Daily Extremes Using LOCA Model Gridded Output.
+
+Temperature is tricky since we will be using a Generalized Pareto to target the extreme values and that also requires a threshold to which the method is sensitive.  Temperature complicates this since we are looking at a goodly amount of non-stationarity as we move into the future.
+
+Warning Typos are Legion.
+
+
+
+# Load Required Libraries
+
+```{r}
+  library(package = "tidyverse")
+  library(package = "tidypredict")
+
+  library(package = "lubridate") # processing dates and time
+  library(package = "stringr")
+
+
+  library(package = "reshape2")  # manipulating data frames
+  library(package = "extRemes")  # extreme data analysis
+  library(package = "abind")
+  
+  
+```
+
+# Available Ensembles
+
+**Table for Available LOCA CMIP5 Point Stations**
+
+CMIP5 Models        | CMIP5 Models          | CMIP5 Models
+--------------------|-----------------------|---------------------
+ACCESS1.0_r1i1p1    | ACCESS1.3_r1i1p1      | CCSM4_r6i1p1         
+CESM1.BGC_r1i1p1    | CESM1.CAM5_r1i1p1     | CMCC.CMS_r1i1p1      
+CMCC.CM_r1i1p1      | CNRM.CM5_r1i1p1       | CSIRO.Mk3.6.0_r1i1p1 
+CanESM2_r1i1p1      | FGOALS.g2_r1i1p1      | GFDL.CM3_r1i1p1      
+GFDL.ESM2G_r1i1p1   | GFDL.ESM2M_r1i1p1     | HadGEM2.AO_r1i1p1    
+HadGEM2.CC_r1i1p1   | HadGEM2.ES_r1i1p1     | IPSL.CM5A.LR_r1i1p1  
+IPSL.CM5A.MR_r1i1p1 | MIROC.ESM.CHEM_r1i1p1 | MIROC.ESM_r1i1p1     
+MIROC5_r1i1p1       | MPI.ESM.LR_r1i1p1     | MPI.ESM.MR_r1i1p1    
+MRI.CGCM3_r1i1p1    | NorESM1.M_r1i1p1      | bcc.csm1.1.m_r1i1p1
+
+
+And we should include our time periods.  Here, we have a baseline period and a future period
+
+```{r}
+  period_span     = 30.
+  base_start      = 1976              # start year
+  base_end        = base_start + period_span-1 # end year  (just before our simulations diverge)
+  
+  base_string     = str_c(base_start,
+                          base_end,
+                          sep="-")
+  
+  
+  
+  per1_start      = 2035             # start
+  per1_end        = per1_start + period_span-1 # end yvar2dear
+  
+  per1_string     = str_c(per1_start,
+                          per1_end,
+                          sep="-")
+  
+  
+  Scenario3 = c( str_c("Historical (",
+                        base_string,
+                        ")",
+                        sep = ""),
+                
+                 str_c("RCP 4.5 (",
+                        per1_string,
+                        ")",
+                        sep = ""),
+                
+                 str_c("RCP 8.5 (",
+                        per1_string,
+                       ")",
+                        sep = "")
+                
+                )
+
+  Scenario  = c( str_c("RCP 4.5 (",
+                        per1_string,
+                        ") - (",
+                        base_string,
+                        ")",
+                        sep = ""),
+                
+                  str_c("RCP 8.5 (",
+                        per1_string,
+                       ") - (",
+                        base_string,
+                        ")",
+                        sep = "")
+                )
+      
+```
+
+# Thresholds for Extreme Events
+
+And while I am up here I am defining a "wetting rain" even threshold as any rain event exceeding 0.1" per day
+
+```{r}
+
+  threshold_ptile = 0.85
+  
+  wetting_rain_treshold = 0.1 * 25.4 # in -> mm (0.1 in = 2.54 )
+
+```
+
+# Data Loading and Pre-Processing
+
+## File Control
+
+```{r}
+
+  URL_Root_Directory = "http://kyrill.ias.sdsmt.edu:8080/thredds/dodsC/LOCA_NGP/climatology/"
+  URL_Root_Directory = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/"
+  
+  # get URL files  "return_statistics_NGP_LOCA_rcp45_pr_2035-2064.RData""
+  LOCA_File_Base  = str_c(base_string,
+                          "/",
+                          "DERIVED",
+                          "/",
+                          "return_statistics_NGP_LOCA_historical_pr_",
+                          base_string,
+                          ".RData",
+                          sep="")
+
+  LOCA_File_Per1_45  = str_c(per1_string,
+                             "/",
+                             "DERIVED",
+                             "/",
+                             "return_statistics_NGP_LOCA_rcp45_pr_",
+                             per1_string,
+                             ".RData",
+                             sep="")
+
+  LOCA_File_Per1_85  = str_c(per1_string,
+                             "/",
+                             "DERIVED",
+                             "/",
+                             "return_statistics_NGP_LOCA_rcp85_pr_",
+                             per1_string,
+                             ".RData",
+                             sep="")
+  
+
+```
+
+
+## Data Ingest
+
+
+```{r}
+
+# Base Period 
+
+  print("Importing Historical Case")
+
+  LOCA_URL        = str_c(URL_Root_Directory,
+                          LOCA_File_Base,
+                          sep="")
+  
+  
+   
+    load(file = (LOCA_URL)) 
+  
+    base_med_return_xyr_arr = med_return_xyr
+    
+
+# RCP 4.5 Period 
+       
+  print("Importing RCP 4.5 Case")
+
+
+  LOCA_URL        = str_c(URL_Root_Directory,
+                          LOCA_File_Per1_45,
+                          sep="")
+  
+  
+   
+    load(file = (LOCA_URL)) 
+  
+    per1_85_med_return_xyr_arr  = med_return_xyr
+    
+
+    
+# RCP 8.5 Period 
+       
+  print("Importing RCP 8.5 Case")
+
+  LOCA_URL        = str_c(URL_Root_Directory,
+                          LOCA_File_Per1_85,
+                          sep="")
+  
+  
+   
+    load(file = (LOCA_URL)) 
+  
+    per1_45_med_return_xyr_arr  = med_return_xyr
+
+
+# Fix the Dimensions 
+
+  dimnames(base_med_return_xyr_arr)    = list("longitude"        = longitude,
+                                              "latitude"         = latitude,
+                                              "Return_Intervals" = return_intervals) 
+       
+  dimnames(per1_45_med_return_xyr_arr) = list("longitude"        = longitude,
+                                              "latitude"         = latitude,
+                                              "Return_Intervals" = return_intervals)
+  
+  dimnames(per1_85_med_return_xyr_arr) = list("longitude"        = longitude,
+                                              "latitude"         = latitude,
+                                              "Return_Intervals" = return_intervals) 
+ 
+
+
+  
+  Ensemble = ensemble_site
+  
+  Return_Intervals = return_intervals
+    
+   
+  remove(LOCA_File_Base,
+         LOCA_File_Per1_45,
+         LOCA_File_Per1_85,
+         LOCA_URL,
+         URL_Root_Directory)
+  
+     
+   remove(time,
+          start_year,
+          end_year,
+          ensemble_site,
+          sumprec_xye,
+          meanprec_xy,
+          mean_xye,  
+          mean_xyde,
+          stdv_xye,
+          stdvprec_xy,
+          return_xyer,
+          med_return_xyr,
+          sd_return_xyr,
+          return_intervals)
+   
+  
+   
+  
+```
+
+# Create Raster for Output Array for Reprojected Return Period
+
+Dimensions
+
+  - nx = longtiude 
+  - ny = latitude
+  - ns = scenario
+  - nr = return invervals 
+
+```{r}
+
+   cross_scenario_reprojected_median_return_xysr_arr = 
+            array(data     = NA,
+                  dim      = c(length(longitude),
+                               length(latitude),
+                               length(Scenario),
+                               length(Return_Intervals)),
+                  dimnames = list("longitude"                = longitude,
+                                  "latitude"                 = latitude,
+                                  "Scenario"                 = Scenario,
+                                  "Base_Period_Return_Periods" = Return_Intervals)
+                  )
+
+```
+
+
+
+
+## Calcualte Inversion Function for Historical
+
+```{r}
+
+
+n_lat = length(latitude)
+n_lon = length(longitude)
+
+for (jj in seq(from =     1,
+               to   = n_lat,
+               by   =     1)) {  # latitude loop
+  
+  if ((jj %% 10) == 0) { # in-loop entertainment
+  
+  print(str_c("Processing Row ",
+              jj,
+              "; Latitude : ",
+              latitude[jj],
+              "°N; [",
+              (jj*100. / n_lat ),"%]",
+              sep=""))
+  } # in-loop entertainment
+    
+   
+  for (ii in seq(from =     1,
+                 to   = n_lon,
+                 by   =     1)) {   # longitude loop
+    
+
+      historical_return_values = base_med_return_xyr_arr[ii,jj, ]
+      rcp45_return_values      = per1_45_med_return_xyr_arr[ii,jj, ]
+      rcp85_return_values      = per1_85_med_return_xyr_arr[ii,jj, ]
+      
+      if ( !anyNA( c( historical_return_values,
+                      rcp45_return_values,
+                      rcp85_return_values) ) )  { # NA Loop
+          
+          # Calcualte Inversion Function for Historical
+        
+          funcHS = splinefun(x      = historical_return_values,
+                             y      = Return_Intervals, 
+                             method = "hyman", 
+                             ties   = mean)  
+           
+          # Calcualte Inversion Function for RCP 4.5
+        
+          func45 = splinefun(x      = rcp45_return_values,
+                             y      = Return_Intervals, 
+                             method = "hyman", 
+                             ties   = mean)
+        
+          # Calcualte Inversion Function for RCP 8.5   
+
+          func85 = splinefun(x      = rcp85_return_values,
+                             y      = Return_Intervals, 
+                             method = "hyman", 
+                             ties   = mean)
+          
+          # Apply Functions to Historical Case 
+          
+          cross_scenario_reprojected_median_return_xysr_arr[ii,jj,1,] =
+               func45(historical_return_values)
+            
+          cross_scenario_reprojected_median_return_xysr_arr[ii,jj,2,] = 
+               func85(historical_return_values)
+ 
+      
+      } # NA Loop
+
+      
+   }  # latitude loop
+
+  
+}  # longitude loop
+
+
+```
+
+
+```{r}
+  # Patch the Resampled Return Periods into a Frame
+
+  Resampled_Return_Periods = melt(data = cross_scenario_reprojected_median_return_xysr_arr,
+                                  value.name = "Resampled_Future_Return_Periods")
+
+
+  # Patch the Median Return Periods into a Frame
+
+  Median_Return_Periods = melt(data       = base_med_return_xyr_arr,
+                          varnames   = names(dimnames(base_med_return_xyr_arr)),
+                          value.name = "Historical")
+   
+   per1_med_return      = melt(data      = per1_45_med_return_xyr_arr,
+                          varnames   = names(dimnames(per1_45_med_return_xyr_arr)),
+                          value.name = "RCP45") 
+   
+   Median_Return_Periods$RCP45 = per1_med_return$RCP45
+   
+   per1_med_return = melt(data      = per1_85_med_return_xyr_arr,
+                          varnames   = names(dimnames(per1_85_med_return_xyr_arr)),
+                          value.name = "RCP85")  
+   
+   Median_Return_Periods$RCP85 = per1_med_return$RCP85
+   
+   Median_Return_Periods = gather(data  = Median_Return_Periods,
+                          key   = "Scenario",
+                          value = "Median_Return_Period_Values",
+                          Historical,
+                          RCP45,
+                          RCP85)
+   
+   
+# Patch the Scenario Names
+   
+  Median_Return_Periods = Median_Return_Periods %>% 
+                         mutate(Scenario = replace(Scenario, 
+                                                   Scenario == "Historical", 
+                                                   str_c("Historical (",
+                                                         base_string, ")",
+                                                         sep=""))) %>% 
+                         as.data.frame()
+  
+  Median_Return_Periods = Median_Return_Periods %>% 
+                         mutate(Scenario = replace(Scenario, 
+                                                   Scenario == "RCP45", 
+                                                   str_c("RCP 4.5 (",
+                                                         per1_string, ")",
+                                                         sep = ""))) %>% 
+                         as.data.frame()
+  
+  Median_Return_Periods = Median_Return_Periods %>% 
+                         mutate(Scenario = replace(Scenario, 
+                                                   Scenario == "RCP85", 
+                                                   str_c("RCP 8.5 (",
+                                                         per1_string, ")",
+                                                         sep = ""))) %>% 
+                         as.data.frame()
+  
+  Median_Return_Periods$Scenario    = as.factor(Median_Return_Periods$Scenario)
+  Resampled_Return_Periods$Scenario = as.factor(Resampled_Return_Periods$Scenario)
+  
+  Resampled_Return_Periods$Change_in_Return_Period = 
+      Resampled_Return_Periods$Resampled_Future_Return_Periods - 
+      Resampled_Return_Periods$Base_Period_Return_Periods
+  
+  
+   
+
+  save(period_span,
+       base_start,
+       base_end,
+       per1_start,
+       per1_end,
+       Median_Return_Periods,
+       Resampled_Return_Periods,
+       file =  paste("./LOCA_NGP_Ensemble_Median_Return_Periods_",
+                     base_string,
+                     "_vs_",
+                     per1_string,
+                     ".RData",
+                     sep="")
+       )
+
+
+  remove(per1_med_return,
+         per1_45_med_return_xyr_arr,
+         per1_85_med_return_xyr_arr,
+         base_med_return_xyr_arr,
+         cross_scenario_reprojected_median_return_xysr_arr)
+  
+```
+
+
+

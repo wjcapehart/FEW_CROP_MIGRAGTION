@@ -1,0 +1,560 @@
+---
+title: "Extreme Precip Analysis or a Grid over a Raster Grid Original Product"
+output: html_notebook
+---
+
+
+
+Processing for Max Precip Daily Extremes Using LOCA Model Gridded Output.
+
+Temperature is tricky since we will be using a Generalized Pareto to target the extreme values and that also requires a threshold to which the method is sensitive.  Temperature complicates this since we are looking at a goodly amount of non-stationarity as we move into the future.
+
+Warning Typos are Legion.
+
+
+
+# Load Required Libraries
+
+```{r}
+  library(package = "tidyverse")
+  library(package = "tidypredict")
+
+  library(package = "ncdf4")
+
+
+  library(package = "lubridate") # processing dates and time
+  library(package = "stringr")
+
+
+  library(package = "reshape2")  # manipulating data frames
+  library(package = "abind")
+
+  library(package = "foreach")
+  library(package = "parallel")
+
+
+  
+  
+```
+
+
+```{r}
+detectCores(all.tests = FALSE, logical = TRUE)
+
+```
+
+# Available Ensembles
+
+**Table for Available LOCA CMIP5 Point Stations**
+
+CMIP5 Models        | CMIP5 Models          | CMIP5 Models
+--------------------|-----------------------|---------------------
+ACCESS1.0_r1i1p1    | ACCESS1.3_r1i1p1      | CCSM4_r6i1p1         
+CESM1.BGC_r1i1p1    | CESM1.CAM5_r1i1p1     | CMCC.CMS_r1i1p1      
+CMCC.CM_r1i1p1      | CNRM.CM5_r1i1p1       | CSIRO.Mk3.6.0_r1i1p1 
+CanESM2_r1i1p1      | FGOALS.g2_r1i1p1      | GFDL.CM3_r1i1p1      
+GFDL.ESM2G_r1i1p1   | GFDL.ESM2M_r1i1p1     | HadGEM2.AO_r1i1p1    
+HadGEM2.CC_r1i1p1   | HadGEM2.ES_r1i1p1     | IPSL.CM5A.LR_r1i1p1  
+IPSL.CM5A.MR_r1i1p1 | MIROC.ESM.CHEM_r1i1p1 | MIROC.ESM_r1i1p1     
+MIROC5_r1i1p1       | MPI.ESM.LR_r1i1p1     | MPI.ESM.MR_r1i1p1    
+MRI.CGCM3_r1i1p1    | NorESM1.M_r1i1p1      | bcc.csm1.1.m_r1i1p1
+
+
+And we should include our time periods.  Here, we have a baseline period and a future period
+
+# Data Loading and Pre-Processing
+
+## File Control
+
+```{r}
+
+  URL_Root_Directory = "http://kyrill.ias.sdsmt.edu:8080/thredds/dodsC/LOCA_NGP/climatology/"
+  URL_Root_Directory = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/"
+  
+  # get URL files  "return_statistics_NGP_LOCA_rcp45_pr_2035-2064.RData""
+  LOCA_File_Base  = 
+  
+
+```
+
+
+## Data Ingest
+
+
+```{r}
+
+# Base Period 
+
+  print("Importing Historical Case")
+
+  LOCA_URL        = str_c(URL_Root_Directory,
+                          LOCA_File_Base,
+                          sep="")
+  
+  
+   
+    load(file = (LOCA_URL)) 
+    
+    
+#   Pull Coordinates
+    
+    Return_Intervals = return_intervals
+    Ensemble         = ensemble_site
+    Latitude         = latitude
+    Longitude        = longitude
+    
+    All_Return_Intervals_xyesr_arr = array(data    = NA,
+                                           dim     = c(length(Longitude),
+                                                       length(Latitude),
+                                                       length(Ensemble),
+                                                       length(Scenario3),
+                                                       length(Return_Intervals)),
+                                           dimnames = list("Longitude"        = Longitude,
+                                                           "Latitude"         = Latitude,
+                                                           "Ensemble"         = Ensemble,
+                                                           "Scenario"         = Scenario3,
+                                                           "Return_Intervals" = Return_Intervals))
+    
+  
+    
+    All_Return_Intervals_xyesr_arr[ , , , 1, ] = return_xyer
+
+# RCP 4.5 Period 
+       
+  print("Importing RCP 4.5 Case")
+
+
+  LOCA_URL        = str_c(URL_Root_Directory,
+                          LOCA_File_Per1_45,
+                          sep="")
+  
+  
+   
+    load(file = (LOCA_URL)) 
+  
+    All_Return_Intervals_xyesr_arr[ , , , 2, ] = return_xyer
+    
+
+    
+# RCP 8.5 Period 
+       
+  print("Importing RCP 8.5 Case")
+
+  LOCA_URL        = str_c(URL_Root_Directory,
+                          LOCA_File_Per1_85,
+                          sep="")
+  
+  
+   
+    load(file = (LOCA_URL)) 
+  
+    All_Return_Intervals_xyesr_arr[ , , , 3, ] = return_xyer
+
+    
+    
+   remove(LOCA_File_Base,
+          LOCA_File_Per1_45,
+          LOCA_File_Per1_85,
+          LOCA_URL,
+          URL_Root_Directory,
+          time,
+          latitude,
+          longitude,
+          start_year,
+          end_year,
+          ensemble_site,
+          sumprec_xye,
+          meanprec_xy,
+          mean_xye,  
+          mean_xyde,
+          stdv_xye,
+          stdvprec_xy,
+          return_xyer,
+          med_return_xyr,
+          sd_return_xyr,
+          return_intervals)
+   
+```
+
+
+# Pass a Median Filter over Raw Data.
+
+```{r}
+
+  # get thematic mask netcdf file.
+
+
+ncngp  = nc_open(filename = "//Users/wjc/GitHub/FEW_CROP_MiGRAGTION/arch/NGP_Climate_Zones.nc") 
+
+lon         =  ncvar_get(nc    = ncngp, 
+                         varid = "lon")
+lat         =  ncvar_get(nc    = ncngp,
+                         varid = "lat")
+
+climate_regions  =  array(data     = NA,
+                          dim      = c(length(lon),
+                                       length(lat)),
+                          dimnames = list("lon" = lon,
+                                          "lat" = lat))
+
+climate_regions[,]    = ncvar_get(nc    = ncngp,
+                               varid = "US_CAN_Zones")
+
+climate_regions = t(apply(X      = climate_regions,
+                        MARGIN = 1, 
+                        FUN    = rev))
+
+
+ filled.contour(climate_regions)
+ filled.contour(All_Return_Intervals_xyesr_arr[, , 1, 1, 1])
+ 
+ remove(ncngp)
+ 
+Climate_Zones = levels(as.factor(climate_regions))
+ 
+n_zones       = length(Climate_Zones)
+
+ 
+ 
+```
+
+
+
+# Create Thematic Arrays Zone-Median arrays for Output Array for Reprojected Return Period
+
+Dimensions
+
+  - nx = longtiude 
+  - ne = ensembles
+  - ns = scenario
+  - nr = return invervals 
+
+`
+```{r}
+
+# create resampled block
+
+
+   Cross_Scenario_Reprojected_Returns_zesr_arr = 
+            array(data    = NA,
+                  dim     = c(length(Climate_Zones),
+                              length(Ensemble),
+                              length(Scenario3),
+                              length(Return_Intervals)),
+                  dimnames = list("Climate_Zones"    = Climate_Zones,
+                                  "Ensemble"         = Ensemble,
+                                  "Scenario"         = Scenario3,
+                                  "Return_Intervals" = Return_Intervals))
+
+
+   Cross_Scenario_Ensemble_Median_Reprojected_Returns_zsr_arr = 
+            array(data    = NA,
+                  dim     = c(length(Climate_Zones),
+                              length(Scenario),
+                              length(Return_Intervals)),
+                  dimnames = list("Climate_Zones"    = Climate_Zones,
+                                  "Scenario"         = Scenario,
+                                  "Return_Intervals" = Return_Intervals))
+   
+
+
+```
+
+
+
+```{r}
+
+
+print("Calcuilating Zone and Ensemble Means")
+
+  for (z  in seq(from =                     1,
+                 to   = length(Climate_Zones),
+                 by   =                     1)) {  # zone loop
+    
+    
+    mask    = climate_regions[,] * NA
+    
+    mask[climate_regions == as.numeric(Climate_Zones[z])] = 1.0
+    
+    n_cells = length(which(mask == 1) )
+    
+    
+    print(str_c(" ",
+                "Median",
+                "  Processing Zone ",
+                z,
+                "; Zone : ",
+                Climate_Zones[z],
+                " [",
+                (z*100. / length(Climate_Zones) ),
+                "%] N=",n_cells,
+                sep=""))
+    
+    for (e in seq(from =                1,
+                  to   = length(Ensemble),
+                  by   =                1)) {  # ensemble  loop
+      
+      for (s in seq(from =    1,
+                    to   = length(Scenario3),
+                    by   = 1)) {  # scenario  loop
+        
+        for (r in seq(from =    1,
+                      to   = length(Return_Intervals),
+                      by   = 1)) { #return year loop
+          
+          subset = All_Return_Intervals_xyesr_arr[,,e,s,r] * mask
+          
+
+          Cross_Scenario_Reprojected_Returns_zesr_arr[z,e,s,r] = median(x = subset,
+                                                                            na.rm=TRUE)
+          }  #return year loop 
+        
+        } # scenario  loop
+      
+      } # ensemble  loop
+    
+    }  # zone loop
+
+
+
+
+```
+
+
+
+## Calcualte Inversion Function for Historical
+
+```{r}
+
+print("Resampling Return Years")
+
+n_ens  = length(Ensemble)
+n_zone = length(Latitude)
+
+for (k in seq(from =     1,
+              to   = n_ens,
+              by   =     1))  {  # ensemble loop
+  
+  print(str_c("Ensemble ",
+              Ensemble[k],
+              sep = ""))
+  
+  ensemble_extracted = All_Return_Intervals_xyesr_arr[,,k,, ]
+
+  for (j in seq(from =     1,
+                to   = n_zone,
+                by   =     1)) {  # Zone loop
+    
+
+      print(str_c(" ",
+                  Ensemble[k],
+                  "  Processing Row ",
+                  j,
+                  "; Latitude : ",
+                  Latitude[j],
+                  "°N; [",
+                  (j*100. / n_lat ),
+                  "%]",
+                  sep=""))
+      
+
+    
+    
+    
+    
+      
+     
+    for (i in seq(from =     1,
+                  to   = n_lon,
+                  by   =     1)) {   # longitude loop
+      
+
+        if ( !anyNA( c( All_Return_Intervals_xyesr_arr[i,j,k,1, ],
+                        All_Return_Intervals_xyesr_arr[i,j,k,2, ],
+                        All_Return_Intervals_xyesr_arr[i,j,k,3, ]) ) )  { # NA Loop
+            
+            # Calcualte Inversion Function for Historical
+          
+            funcHS = splinefun(x      = All_Return_Intervals_xyesr_arr[i,j,k,1, ],
+                               y      = Return_Intervals, 
+                               method = "hyman", 
+                               ties   = mean)  
+             
+            # Calcualte Inversion Function for RCP 4.5
+          
+            func45 = splinefun(x      = All_Return_Intervals_xyesr_arr[i,j,k,2, ],
+                               y      = Return_Intervals, 
+                               method = "hyman", 
+                               ties   = mean)
+          
+            # Calcualte Inversion Function for RCP 8.5   
+  
+            func85 = splinefun(x      = All_Return_Intervals_xyesr_arr[i,j,k,3, ],
+                               y      = Return_Intervals, 
+                               method = "hyman", 
+                               ties   = mean)
+            
+            # Apply Functions to Historical Case 
+            
+            Cross_Scenario_Reprojected_Returns_xyesr_arr[i,j,k,1,] =
+                 func45(All_Return_Intervals_xyesr_arr[i,j,k,1, ])
+              
+            Cross_Scenario_Reprojected_Returns_xyesr_arr[i,j,k,2,] = 
+                 func85(All_Return_Intervals_xyesr_arr[i,j,k,1, ])
+   
+        } # NA Loop
+        
+     }  # longitude loop
+  
+  }  # Zone loop
+
+}  # ensemble loop
+
+
+
+#Cross_Scenario_Reprojected_Returns_xyesr_arr = as.numeric(Cross_Scenario_Reprojected_Returns_xyesr_arr)
+
+```
+
+
+
+```{r}
+
+
+  save(period_span,
+       base_start,
+       base_end,
+       per1_start,
+       per1_end,
+       Latitude,
+       Longitude,
+       Ensemble,
+       Scenario,
+       Scenario3,
+       All_Return_Intervals_xyesr_arr,
+       Cross_Scenario_Reprojected_Returns_xyesr_arr,
+       Cross_Scenario_Ensemble_Median_Reprojected_Returns_xysr_arr,
+       file =  paste("./LOCA_NGP_Ensemble_Return_Periods_",
+                     base_string,
+                     "_vs_",
+                     per1_string,
+                     ".RData",
+                     sep="")
+       )
+
+
+
+
+
+```
+
+
+```{r}
+
+
+
+  Resampled_Return_Periods = melt(data = Cross_Scenario_Reprojected_Returns_xyesr_arr,
+                                  value.name = "Resampled_Future_Return_Periods")
+  remove(Cross_Scenario_Reprojected_Returns_xyesr_arr)
+
+
+  Resampled_Return_Periods$Ensemble = as.factor(Resampled_Return_Periods$Ensemble)
+  Resampled_Return_Periods$Scenario = as.factor(Resampled_Return_Periods$Scenario)
+
+  
+  
+    save(
+       base_start,
+       base_end,
+       per1_start,
+       per1_end,
+       period_span,
+       Longitude,
+       Latitude,
+       Ensemble,
+       Scenario,
+       Return_Intervals,
+       Resampled_Return_Periods,
+       file =  paste("./LOCA_NGP_Resampled_Return_Periods__",
+                     base_start,"-",base_end,
+                     "_vs_",
+                     per1_start,"-",per1_end,
+                     ".RData",
+                     sep="")
+       )
+
+    remove(Resampled_Return_Periods)
+
+    
+    
+    
+  Median_Resampled_Return_Periods = melt(data = Cross_Scenario_Ensemble_Median_Reprojected_Returns_xysr_arr,
+                                         value.name = "Resampled_Future_Return_Periods")  
+    
+    
+    remove(Cross_Scenario_Ensemble_Median_Reprojected_Returns_xysr_arr)
+  
+      save(
+       base_start,
+       base_end,
+       per1_start,
+       per1_end,
+       period_span,
+       Longitude,
+       Latitude,
+       Ensemble,
+       Scenario,
+       Return_Intervals,
+       Median_Resampled_Return_Periods,
+       file =  paste("./LOCA_NGP_Ensemble-Median_Resampled_Return_Periods_smoothed__",
+                     base_start,"-",base_end,
+                     "_vs_",
+                     per1_start,"-",per1_end,
+                     ".RData",
+                     sep=""))
+      
+          remove(Median_Resampled_Return_Periods)
+
+  
+```
+
+##################
+```{r}
+
+
+    
+         
+  All_Return_Intervals = melt(data = All_Return_Intervals_xyesr_arr,
+                                  value.name = "Return_Period_Values")
+
+  remove(All_Return_Intervals_xyesr_arr)
+  
+        
+
+  All_Return_Intervals$Ensemble = as.factor(All_Return_Intervals$Ensemble)
+  All_Return_Intervals$Scenario = as.factor(All_Return_Intervals$Scenario)
+
+  
+    save(
+       base_start,
+       base_end,
+       per1_start,
+       per1_end,
+       period_span,
+       Longitude,
+       Latitude,
+       Ensemble,
+       Scenario3,
+       Return_Intervals,
+       All_Return_Intervals,
+       file =  paste("./LOCA_NGP_Ensemble_All_121Med_Return_Periods__",
+                     base_start,"-",base_end,
+                     "_vs_",
+                     per1_start,"-",per1_end,
+                     ".RData",
+                     sep="")
+       )
+
+
+```
+=

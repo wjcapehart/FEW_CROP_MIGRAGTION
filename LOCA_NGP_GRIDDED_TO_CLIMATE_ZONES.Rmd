@@ -1,0 +1,466 @@
+---
+title: "Resamples Extreme Precip Analysis or a Grid over a Raster Grid Original Product to a Thematically-Aggregated Data Set"
+output: html_notebook
+---
+
+
+
+Processing for Max Precip Daily Extremes Using LOCA Model Gridded Output.
+
+Temperature is tricky since we will be using a Generalized Pareto to target the extreme values and that also requires a threshold to which the method is sensitive.  Temperature complicates this since we are looking at a goodly amount of non-stationarity as we move into the future.
+
+Warning Typos are Legion.
+
+
+
+# Load Required Libraries
+
+```{r}
+  library(package = "tidyverse")
+  library(package = "tidypredict")
+
+  library(package = "ncdf4")
+
+
+  library(package = "lubridate") # processing dates and time
+  library(package = "stringr")
+
+
+  library(package = "reshape2")  # manipulating data frames
+  library(package = "abind")
+
+  library(package = "foreach")
+  library(package = "parallel")
+
+
+  
+  
+```
+
+
+```{r}
+detectCores(all.tests = FALSE, logical = TRUE)
+
+```
+
+# Available Ensembles
+
+**Table for Available LOCA CMIP5 Point Stations**
+
+CMIP5 Models        | CMIP5 Models          | CMIP5 Models
+--------------------|-----------------------|---------------------
+ACCESS1.0_r1i1p1    | ACCESS1.3_r1i1p1      | CCSM4_r6i1p1         
+CESM1.BGC_r1i1p1    | CESM1.CAM5_r1i1p1     | CMCC.CMS_r1i1p1      
+CMCC.CM_r1i1p1      | CNRM.CM5_r1i1p1       | CSIRO.Mk3.6.0_r1i1p1 
+CanESM2_r1i1p1      | FGOALS.g2_r1i1p1      | GFDL.CM3_r1i1p1      
+GFDL.ESM2G_r1i1p1   | GFDL.ESM2M_r1i1p1     | HadGEM2.AO_r1i1p1    
+HadGEM2.CC_r1i1p1   | HadGEM2.ES_r1i1p1     | IPSL.CM5A.LR_r1i1p1  
+IPSL.CM5A.MR_r1i1p1 | MIROC.ESM.CHEM_r1i1p1 | MIROC.ESM_r1i1p1     
+MIROC5_r1i1p1       | MPI.ESM.LR_r1i1p1     | MPI.ESM.MR_r1i1p1    
+MRI.CGCM3_r1i1p1    | NorESM1.M_r1i1p1      | bcc.csm1.1.m_r1i1p1
+
+
+And we should include our time periods.  Here, we have a baseline period and a future period
+
+```{r}
+  period_span     = 30.
+  base_start      = 1976              # start year
+  base_end        = base_start + period_span-1 # end year  (just before our simulations diverge)
+  
+  base_string     = str_c(base_start,
+                          base_end,
+                          sep="-")
+  
+  
+  
+  per1_start      = 2035             # start
+  per1_end        = per1_start + period_span-1 # end yvar2dear
+  
+  per1_string     = str_c(per1_start,
+                          per1_end,
+                          sep="-")
+  
+  
+  Scenario3 = c( str_c("Historical (",
+                        base_string,
+                        ")",
+                        sep = ""),
+                
+                 str_c("RCP 4.5 (",
+                        per1_string,
+                        ")",
+                        sep = ""),
+                
+                 str_c("RCP 8.5 (",
+                        per1_string,
+                       ")",
+                        sep = "")
+                
+                )
+
+  Scenario  = c( str_c("RCP 4.5 (",
+                        per1_string,
+                        ") - (",
+                        base_string,
+                        ")",
+                        sep = ""),
+                
+                  str_c("RCP 8.5 (",
+                        per1_string,
+                       ") - (",
+                        base_string,
+                        ")",
+                        sep = "")
+                )
+      
+```
+
+
+# Data Loading and Pre-Processing
+
+## File Control
+
+```{r}
+
+  URL_Root_Directory = "http://kyrill.ias.sdsmt.edu:8080/thredds/fileServer/LOCA_NGP/climatology/"
+  URL_Root_Directory = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/"
+  
+  # get URL files  "return_statistics_NGP_LOCA_rcp45_pr_2035-2064.RData""
+  LOCA_File_Base  = str_c(base_string,
+                          "/",
+                          "DERIVED",
+                          "/",
+                          "return_statistics_NGP_LOCA_historical_pr_",
+                          base_string,
+                          ".RData",
+                          sep="")
+
+  LOCA_File_Per1_45  = str_c(per1_string,
+                             "/",
+                             "DERIVED",
+                             "/",
+                             "return_statistics_NGP_LOCA_rcp45_pr_",
+                             per1_string,
+                             ".RData",
+                             sep="")
+
+  LOCA_File_Per1_85  = str_c(per1_string,
+                             "/",
+                             "DERIVED",
+                             "/",
+                             "return_statistics_NGP_LOCA_rcp85_pr_",
+                             per1_string,
+                             ".RData",
+                             sep="")
+  
+
+```
+
+
+## Data Ingest
+
+
+```{r}
+
+# Base Period 
+
+  print("Importing Historical Case")
+
+  LOCA_URL        = str_c(URL_Root_Directory,
+                          LOCA_File_Base,
+                          sep="")
+  
+  
+   
+    load(file = (LOCA_URL)) 
+    
+    
+#   Pull Coordinates
+    
+    Return_Intervals = return_intervals
+    Ensemble         = ensemble_site
+    Latitude         = latitude
+    Longitude        = longitude
+    
+    All_Return_Intervals_xyesr_arr = array(data    = NA,
+                                           dim     = c(length(Longitude),
+                                                       length(Latitude),
+                                                       length(Ensemble),
+                                                       length(Scenario3),
+                                                       length(Return_Intervals)),
+                                           dimnames = list("Longitude"        = Longitude,
+                                                           "Latitude"         = Latitude,
+                                                           "Ensemble"         = Ensemble,
+                                                           "Scenario"         = Scenario3,
+                                                           "Return_Intervals" = Return_Intervals))
+    
+  
+    
+    All_Return_Intervals_xyesr_arr[ , , , 1, ] = return_xyer
+
+# RCP 4.5 Period 
+       
+  print("Importing RCP 4.5 Case")
+
+
+  LOCA_URL        = str_c(URL_Root_Directory,
+                          LOCA_File_Per1_45,
+                          sep="")
+  
+  
+   
+    load(file = (LOCA_URL)) 
+  
+    All_Return_Intervals_xyesr_arr[ , , , 2, ] = return_xyer
+    
+
+    
+# RCP 8.5 Period 
+       
+  print("Importing RCP 8.5 Case")
+
+  LOCA_URL        = str_c(URL_Root_Directory,
+                          LOCA_File_Per1_85,
+                          sep="")
+  
+  
+   
+    load(file = (LOCA_URL)) 
+  
+    All_Return_Intervals_xyesr_arr[ , , , 3, ] = return_xyer
+
+    
+    
+   remove(LOCA_File_Base,
+          LOCA_File_Per1_45,
+          LOCA_File_Per1_85,
+          LOCA_URL,
+          URL_Root_Directory,
+          time,
+          latitude,
+          longitude,
+          start_year,
+          end_year,
+          ensemble_site,
+          sumprec_xye,
+          meanprec_xy,
+          mean_xye,  
+          mean_xyde,
+          stdv_xye,
+          stdvprec_xy,
+          return_xyer,
+          med_return_xyr,
+          sd_return_xyr,
+          return_intervals)
+   
+```
+
+
+# Pass a Median Filter over Raw Data.
+
+```{r}
+
+  # get thematic mask netcdf file.
+
+
+ncngp  = nc_open(filename = "//Users/wjc/GitHub/FEW_CROP_MiGRAGTION/arch/NGP_Climate_Zones.nc") 
+
+lon         =  ncvar_get(nc    = ncngp, 
+                         varid = "lon")
+lat         =  ncvar_get(nc    = ncngp,
+                         varid = "lat")
+
+climate_regions  =  array(data     = NA,
+                          dim      = c(length(lon),
+                                       length(lat)),
+                          dimnames = list("lon" = lon,
+                                          "lat" = lat))
+
+climate_regions[,]    = ncvar_get(nc    = ncngp,
+                               varid = "US_CAN_Zones")
+
+climate_regions = t(apply(X      = climate_regions,
+                        MARGIN = 1, 
+                        FUN    = rev))
+
+
+ filled.contour(climate_regions)
+ filled.contour(All_Return_Intervals_xyesr_arr[, , 1, 1, 1])
+ 
+ remove(ncngp)
+ 
+Climate_Zones = levels(as.factor(climate_regions))
+ 
+n_zones       = length(Climate_Zones)
+
+ 
+ 
+```
+
+
+
+# Create Thematic Arrays Zone-Median arrays for Output Array for Reprojected Return Period
+
+Dimensions
+
+  - nx = longtiude 
+  - ne = ensembles
+  - ns = scenario
+  - nr = return invervals 
+
+`
+```{r}
+
+# create resampled block
+
+  Statistic = c("P000",
+                "P025",
+                "P050",
+                "P075",
+                "P100",
+                "Mean")
+
+
+   Cross_Scenario_Reprojected_Returns_Stats_zesr_arr = 
+            array(data    = NA,
+                  dim     = c(length(Climate_Zones),
+                              length(Ensemble),
+                              length(Scenario3),
+                              length(Return_Intervals),
+                              length(Statistic)),
+                  dimnames = list("Climate_Zones"    = Climate_Zones,
+                                  "Ensemble"         = Ensemble,
+                                  "Scenario"         = Scenario3,
+                                  "Return_Intervals" = Return_Intervals,
+                                  "Statistic"        = Statistic)
+                  )
+
+
+
+    
+       
+```
+
+
+
+```{r}
+
+
+print("Calcuilating Zone and Ensemble Means")
+
+  for (z  in seq(from =                     1,
+                 to   = length(Climate_Zones),
+                 by   =                     1)) {  # zone loop
+    
+    
+    mask    = climate_regions[,] * NA
+    
+    mask[climate_regions == as.numeric(Climate_Zones[z])] = 1.0
+    
+    n_cells = length(which(mask == 1) )
+    
+    
+    print(str_c(" ",
+                "Median",
+                "  Processing Zone ",
+                z,
+                "; Zone : ",
+                Climate_Zones[z],
+                " [",
+                (z*100. / length(Climate_Zones) ),
+                "%] N=",n_cells,
+                sep=""))
+    
+    for (e in seq(from =                1,
+                  to   = length(Ensemble),
+                  by   =                1)) {  # ensemble  loop
+      
+      for (s in seq(from =    1,
+                    to   = length(Scenario3),
+                    by   = 1)) {  # scenario  loop
+        
+        for (r in seq(from =    1,
+                      to   = length(Return_Intervals),
+                      by   = 1)) { #return year loop
+          
+          subset = All_Return_Intervals_xyesr_arr[,,e,s,r] * mask
+
+
+          
+          
+          Cross_Scenario_Reprojected_Returns_Stats_zesr_arr[z,e,s,r,1] = min(x = subset,
+                                                                               na.rm=TRUE)
+          
+          Cross_Scenario_Reprojected_Returns_Stats_zesr_arr[z,e,s,r,2] = quantile(x = subset, probs=0.25,
+                                                                          na.rm=TRUE)
+
+          Cross_Scenario_Reprojected_Returns_Stats_zesr_arr[z,e,s,r,3] = median(x = subset,
+                                                                             na.rm=TRUE)
+          
+          
+          Cross_Scenario_Reprojected_Returns_Stats_zesr_arr[z,e,s,r,4] = quantile(x = subset, probs=0.75,
+                                                                          na.rm=TRUE)
+                    
+
+          
+          
+          Cross_Scenario_Reprojected_Returns_Stats_zesr_arr[z,e,s,r,5] = max(x = subset,
+                                                                          na.rm=TRUE)          
+                    
+          Cross_Scenario_Reprojected_Returns_Stats_zesr_arr[z,e,s,r,6] = mean(x = subset,
+                                                                               na.rm=TRUE)
+          
+          }  #return year loop 
+        
+        } # scenario  loop
+      
+      } # ensemble  loop
+    
+    }  # zone loop
+
+
+
+```
+
+
+
+
+
+
+```{r}
+
+
+  Ensemble_Return_Periods_By_Climate_Zone_Stats = melt(data = Cross_Scenario_Reprojected_Returns_Stats_zesr_arr,
+                                                        value.name = "Zone_Median_Return_Periods")
+
+  Ensemble_Return_Periods_By_Climate_Zone_Stats$Return_Intervals = as.factor(Ensemble_Return_Periods_By_Climate_Zone_Stats$Return_Intervals)
+  
+  
+    Ensemble_Return_Periods_By_Climate_Zone_Stats$Statistic = as.factor(Ensemble_Return_Periods_By_Climate_Zone_Stats$Statistic) 
+
+  save(period_span,
+       base_start,
+       base_end,
+       per1_start,
+       per1_end,
+       Climate_Zones,
+       Return_Intervals,
+       Ensemble,
+       Scenario3,
+       Ensemble_Return_Periods_By_Climate_Zone_Stats,
+       file =  paste("./LOCA_NGP_Ensemble_Return_Periods_by_Climate_Zone_Statistics_",
+                     base_string,
+                     "_vs_",
+                     per1_string,
+                     ".RData",
+                     sep="")
+       )
+
+
+
+
+
+```
+
+
+=

@@ -1,0 +1,313 @@
+---
+title: "Extreme Precip Analysis or a Grid over a Raster Grid Original Product"
+output: html_notebook
+---
+
+
+
+Processing for Max Precip Daily Extremes Using LOCA Model Gridded Output.
+
+Temperature is tricky since we will be using a Generalized Pareto to target the extreme values and that also requires a threshold to which the method is sensitive.  Temperature complicates this since we are looking at a goodly amount of non-stationarity as we move into the future.
+
+Warning Typos are Legion.
+
+
+
+# Load Required Libraries
+
+```{r}
+  library(package = "tidyverse")
+  library(package = "tidypredict")
+
+  library(package = "ncdf4")
+
+
+  library(package = "lubridate") # processing dates and time
+  library(package = "stringr")
+
+
+  library(package = "reshape2")  # manipulating data frames
+  library(package = "abind")
+
+  library(package = "foreach")
+  library(package = "parallel")
+
+
+  
+  
+```
+
+
+```{r}
+detectCores(all.tests = FALSE, logical = TRUE)
+
+```
+
+# Available Ensembles
+
+**Table for Available LOCA CMIP5 Point Stations**
+
+CMIP5 Models        | CMIP5 Models          | CMIP5 Models
+--------------------|-----------------------|---------------------
+ACCESS1.0_r1i1p1    | ACCESS1.3_r1i1p1      | CCSM4_r6i1p1         
+CESM1.BGC_r1i1p1    | CESM1.CAM5_r1i1p1     | CMCC.CMS_r1i1p1      
+CMCC.CM_r1i1p1      | CNRM.CM5_r1i1p1       | CSIRO.Mk3.6.0_r1i1p1 
+CanESM2_r1i1p1      | FGOALS.g2_r1i1p1      | GFDL.CM3_r1i1p1      
+GFDL.ESM2G_r1i1p1   | GFDL.ESM2M_r1i1p1     | HadGEM2.AO_r1i1p1    
+HadGEM2.CC_r1i1p1   | HadGEM2.ES_r1i1p1     | IPSL.CM5A.LR_r1i1p1  
+IPSL.CM5A.MR_r1i1p1 | MIROC.ESM.CHEM_r1i1p1 | MIROC.ESM_r1i1p1     
+MIROC5_r1i1p1       | MPI.ESM.LR_r1i1p1     | MPI.ESM.MR_r1i1p1    
+MRI.CGCM3_r1i1p1    | NorESM1.M_r1i1p1      | bcc.csm1.1.m_r1i1p1
+
+
+And we should include our time periods.  Here, we have a baseline period and a future period
+
+# Data Loading and Pre-Processing
+
+## File Control
+
+```{r}
+
+
+  
+  # get URL files  "return_statistics_NGP_LOCA_rcp45_pr_2035-2064.RData""
+  Return_Input_File  = "./LOCA_NGP_Ensemble_Return_Periods_merge_all_ens_by_Climate_Zone_Statistics_1976-2005_vs_2035-2064.RData"
+  
+
+```
+
+
+## Data Ingest
+
+
+```{r}
+
+# Base Period 
+
+
+  
+   
+  load(file = Return_Input_File) 
+
+  load(file = "./Climate_Zones_Name_LUT.Rdata")
+
+  base_string     = str_c(base_start,
+                          base_end,
+                          sep="-")
+  
+  per1_string     = str_c(per1_start,
+                          per1_end,
+                          sep="-")
+    
+  Scenario  = c( str_c("RCP 4.5 (",
+                        per1_string,
+                        ") - (",
+                        base_string,
+                        ")",
+                        sep = ""),
+                
+                  str_c("RCP 8.5 (",
+                        per1_string,
+                       ") - (",
+                        base_string,
+                        ")",
+                        sep = "")
+                )
+  
+  Climate_Zones = unique(Ensemble_Return_Periods_By_Climate_Zone_Stats_All_Ens$Climate_Zones)
+  
+  
+  Ensemble_Return_Periods_By_Climate_Zone_Stats_All_Ens
+```
+
+
+# Create Thematic Arrays Zone-Median arrays for Output Array for Reprojected Return Period
+
+Dimensions
+
+  - nx = longtiude 
+  - ne = ensembles
+  - ns = scenario
+  - nr = return invervals 
+
+`
+```{r}
+
+# create resampled block
+
+  z=1
+
+  for (z  in seq(from =                     1,
+                 to   = length(Climate_Zones),
+                 by   =                     1)) {  # zone loop
+
+    
+    
+    Target_Zone = Climate_Zones[z]
+        
+    subset_H = Ensemble_Return_Periods_By_Climate_Zone_Stats_All_Ens %>%
+                 filter( (Climate_Zones == Target_Zone) &
+                         str_detect(string  = Scenario,
+                                    pattern = "Historical") )
+    
+    subset_8 = Ensemble_Return_Periods_By_Climate_Zone_Stats_All_Ens %>%
+                 filter( (Climate_Zones == Target_Zone) &
+                         str_detect(string  = Scenario,
+                                    pattern = "RCP 8.5") )
+    
+    subset_4 = Ensemble_Return_Periods_By_Climate_Zone_Stats_All_Ens %>%
+                 filter( (Climate_Zones == Target_Zone) &
+                         str_detect(string  = Scenario,
+                                    pattern = "RCP 4.5") )
+    
+    if ( nrow(subset_H) > 0 )  { # NA Loop
+ 
+    
+      # Calculate Inversion Function for Historical
+
+      funcHS = splinefun(x      = subset_H$Mean,
+                         y      = subset_H$Return_Intervals, 
+                         method = "hyman", 
+                         ties   = mean)  
+     
+      # Calcualte Inversion Function for RCP 4.5
+  
+      func45 = splinefun(x      = subset_4$Mean,
+                         y      = subset_4$Return_Intervals, 
+                         method = "hyman", 
+                         ties   = mean)
+  
+      # Calcualte Inversion Function for RCP 8.5   
+
+      func85 = splinefun(x      = subset_8$Mean,
+                         y      = subset_8$Return_Intervals, 
+                         method = "hyman", 
+                         ties   = mean)
+    
+      # Apply RCP 4.5 - Hist
+    
+      temp = data.frame(Climate_Zones      = Target_Zone, 
+                        Historical_Return_Intervals   = Return_Intervals,
+                        Max_Daily_Rainfall = subset_H$Mean,
+                        RCP45              = func45(subset_H$Mean),
+                        RCP85              = func85(subset_H$Mean))
+    
+      if (z == 1) {
+      
+        
+        Resampled_Climate_Zone_Returns = temp
+      
+      } else {
+        
+        Resampled_Climate_Zone_Returns =  rbind(Resampled_Climate_Zone_Returns,
+                                                temp)
+      }
+    
+
+      remove(temp)
+
+      remove(func85)
+      remove(func45)
+      remove(funcHS)
+      
+    } # NA Loop
+    
+    print(str_c(" ",
+            "  Processing Zone ",
+            z,
+            "; Zone : ",
+            Target_Zone,
+            " [",
+            (z*100. / length(Climate_Zones) ),
+            "%] N=",nrow(subset_H),
+            sep=""))
+    
+    
+    remove(subset_4)
+    remove(subset_8)
+    remove(subset_H)
+    
+    
+    
+    
+  }  # climate zone loop
+
+  
+  Resampled_Climate_Zone_Returns = gather(data = Resampled_Climate_Zone_Returns,
+                                          key  = "Scenario",
+                                          value = "Future_Return_Intervals",
+                                          RCP45,
+                                          RCP85)
+
+    Scenario2 = Scenario
+  
+    Resampled_Climate_Zone_Returns = Resampled_Climate_Zone_Returns %>% 
+                         mutate(Scenario = replace(Scenario, 
+                                                   Scenario == "RCP45", 
+                                                   Scenario2[1])) %>% 
+                         as.data.frame()
+
+
+    Resampled_Climate_Zone_Returns = Resampled_Climate_Zone_Returns %>% 
+                         mutate(Scenario = replace(Scenario, 
+                                                   Scenario == "RCP85", 
+                                                   Scenario2[2])) %>% 
+                         as.data.frame()
+    
+    
+
+```
+
+
+
+
+
+
+```{r}
+
+
+
+    Resampled_Climate_Zone_Returns = Resampled_Climate_Zone_Returns %>% 
+                         mutate(Future_Return_Intervals = replace(Future_Return_Intervals, 
+                                                          Future_Return_Intervals <=0, 
+                                                          NA)) %>% 
+                         as.data.frame()
+    
+
+    Resampled_Climate_Zone_Returns$Climate_Zones = as.factor(Resampled_Climate_Zone_Returns$Climate_Zones)
+    Resampled_Climate_Zone_Returns$Historical_Return_Intervals = as.factor(Resampled_Climate_Zone_Returns$Historical_Return_Intervals)
+    Resampled_Climate_Zone_Returns$Scenario = as.factor(Resampled_Climate_Zone_Returns$Scenario)
+
+  
+
+    save(
+       base_start,
+       base_end,
+       per1_start,
+       per1_end,
+       period_span,
+       Climate_Zones,
+       Ensemble,
+       Scenario,
+       Return_Intervals,
+       Resampled_Climate_Zone_Returns,
+       file =  paste("./LOCA_NGP_Resampled_Return_Periods_Climate_Zones_",
+                     base_start,"-",base_end,
+                     "_vs_",
+                     per1_start,"-",per1_end,
+                     ".RData",
+                     sep="")
+       )
+
+
+    
+```
+
+
+```{r}
+
+```
+
+
+
+

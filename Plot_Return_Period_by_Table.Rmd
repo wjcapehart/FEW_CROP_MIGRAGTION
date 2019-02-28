@@ -1,0 +1,372 @@
+---
+title: "Plot Return Comparisons"
+output: html_notebook
+---
+
+
+# 1 Introduction
+
+This script processes annual LOCA and GHCN temperature and rainfall.
+
+The climate model output comes from the USGS [LOCA](http://loca.ucsd.edu) Downscaled Analyses from the CMIP5 climate model runs from 27 models.  (There were a total of 32 models used for these analyses but we are only using the model runs that include maximum/miniumum temperature, and precipitation.)
+
+**Table for Available LOCA CMIP5 Point Stations**
+
+CMIP5 Models        | CMIP5 Models          | CMIP5 Models
+--------------------|-----------------------|---------------------
+ACCESS1.0_r1i1p1    | ACCESS1.3_r1i1p1      | CCSM4_r6i1p1         
+CESM1.BGC_r1i1p1    | CESM1.CAM5_r1i1p1     | CMCC.CMS_r1i1p1      
+CMCC.CM_r1i1p1      | CNRM.CM5_r1i1p1       | CSIRO.Mk3.6.0_r1i1p1 
+CanESM2_r1i1p1      | FGOALS.g2_r1i1p1      | GFDL.CM3_r1i1p1      
+GFDL.ESM2G_r1i1p1   | GFDL.ESM2M_r1i1p1     | HadGEM2.AO_r1i1p1    
+HadGEM2.CC_r1i1p1   | HadGEM2.ES_r1i1p1     | IPSL.CM5A.LR_r1i1p1  
+IPSL.CM5A.MR_r1i1p1 | MIROC.ESM.CHEM_r1i1p1 | MIROC.ESM_r1i1p1     
+MIROC5_r1i1p1       | MPI.ESM.LR_r1i1p1     | MPI.ESM.MR_r1i1p1    
+MRI.CGCM3_r1i1p1    | NorESM1.M_r1i1p1      | bcc.csm1.1.m_r1i1p1
+
+The result is an *ensemble* of 27 independant virtual earths for our simulation period from 1950 to 2099.
+
+The simulations further diverge at 2006 where our model runs separate into two scenarios.
+
+* **RCP 4.5**: A simulation targeting a total amount of 4.5 W m^2^ addition greenhouse forcing 
+* **RCP 8.5**: A simulation targeting a total amount of 8.5 W m^2^ addition greenhouse forcing 
+
+Together, we use these two future cases to reprsent upper and lower bounds of likely expected future climates depending on current and projected greenhouse gas emissions. (The "RPC" stands for ["Representative Pathway Concentration"](https://link.springer.com/article/10.1007/s10584-011-0148-z))
+
+
+
+# 2  Libraries
+
+* Install Us First
+  + [tidyverse](https://www.tidyverse.org) : Set of commonly-used Data Science packages for R that it can install and load all at once. In the long-run you probably also want to install the tidyverse package suite anyway. For this exercise this will include...
+    - [gplot2](https://ggplot2.tidyverse.org) : Create Elegant Data Visualizations Using the Grammar of Graphics
+    - [tidyr](https://tidyr.tidyverse.org) : tools for shepherding data in data frames.
+    - [stringr](https://stringr.tidyverse.org) : Simple, Consistent Wrappers for Common String Operations
+
+
+  + Additoinal Tidyverse Resources
+    - [lubridate](http://lubridate.tidyverse.org) : Date-Time Control
+
+
+  + NetCDF Resource
+    - [ncdf4](https://www.rdocumentation.org/packages/ncdf4/versions/1.16) : NetCDF and OPEnDAP Support
+    - [ncdf4.helpers](https://www.rdocumentation.org/packages/ncdf4.helpers/versions/0.3-3) : Additional tools to work with NetCDF & OPEeNDAP files
+    
+  + Mapping Resources
+    [maps](https://www.rdocumentation.org/packages/maps/versions/3.3.0) : Display of maps. Projection code and larger maps are in separate packages ('mapproj' and 'mapdata').
+    [mapproj](https://www.rdocumentation.org/packages/mapproj/versions/1.2.6) : Converts latitude/longitude into projected coordinates.
+    [sf](https://www.rdocumentation.org/packages/sf/versions/0.6-3) : Support for simple features, a standardized way to encode spatial vector data
+    
+    [scales]() : Color Scale Support
+  
+```{r}
+
+# Libraries
+
+  # Tidyverse Packates
+
+  library(package = "tidyverse") # bulk frequently-used tidyverse packages
+  library(package = "lubridate") # tidyverse date-time support'
+
+  library(package = "RColorBrewer")
+
+
+  library(package = "PCICt") # Implementation of POSIXct Work-Alike for 365 and 360 Day Calendars
+
+
+  # Mapping  support
+  library(package = "maps")
+  library(package = "mapproj")
+  library(package = "rgdal")
+  library(package = "rgeos")
+
+  # array -> dataframe
+  library(package = "reshape2")
+
+  library(package = "scales")
+
+```
+
+
+
+# 4 LOCA Files, Directory and OPeNDAP URLS (includes coordinate extraction)
+
+```{r}
+
+  # Files
+
+  # Return Period Table
+
+  table_file_name = "~/GitHub/FEW_CROP_MiGRAGTION/LOCA_NGP_Resampled_Return_Periods_Climate_Zones_1976-2005_vs_2035-2064.RData"
+
+  load(file = table_file_name)
+  
+  base_string     = str_c("Historical (",
+                          base_start,
+                          "-",
+                          base_end,
+                          ")",
+                          sep="")
+  # Mapping Files
+  
+  mapping_file_name = "~/GitHub/FEW_CROP_MiGRAGTION/NGP_CLIMATE_ZONES.Rdata"
+
+  load(file = mapping_file_name)
+  
+  zone_name_LUT_file_name = "~/GitHub/FEW_CROP_MiGRAGTION/Climate_Zones_Name_LUT.Rdata"
+  load(file = zone_name_LUT_file_name)
+
+    
+  Longitude = unique(climate_regions$Longitude)
+  Latitude  = unique(climate_regions$Latitude)
+
+  
+  climate_regions = climate_regions %>% filter(!is.na(US_CAN_Zones))
+  
+  climate_zones_to_loop_through = unique(climate_regions$US_CAN_Zones)
+
+  
+```
+
+
+
+# 5 Import Mapping Data
+
+US and Lake Data is Available in R.  Canadian Data isn't so we have a custom polygon library
+
+```{r}
+load(file = "./canadian_provinces.Rdata")
+# inported field is canada_data = canadian_provinces
+
+
+usa_data   = map_data(map="state", 
+                      xlim=c(-114.2812, -86.21875),  
+                      ylim=c (33.96875,  52.78125) ) 
+water_data = map_data(map="lakes", 
+                      xlim=c(-114.2812,-86.21875),  
+                      ylim=c( 33.96875, 52.78125) ) 
+
+```
+
+
+
+
+
+```{r}
+
+
+Target_Return_Interval = 20
+for (Target_Return_Interval in Return_Intervals) {
+  
+  print(str_c("Plotting Return Interval = ",Target_Return_Interval))
+
+
+   return_table = Resampled_Climate_Zone_Returns %>% filter((Historical_Return_Intervals == Target_Return_Interval))  
+ 
+   mapping = left_join(x  = climate_regions, 
+                       y  = return_table,
+                       by = c("US_CAN_Zones" = "Climate_Zones"))
+  
+
+   lon_width = max(Longitude) - min(Longitude)
+   lat_width = max(Latitude) - min(Latitude)
+   
+   color_value_min = max(c(min(mapping$Future_Return_Intervals,na.rm=TRUE),0))
+   
+   color_value_max = max(mapping$Future_Return_Intervals)
+
+  
+
+    outplot = ggplot(data   =   mapping)  + 
+          
+                       aes(x     = Longitude,
+                           y     = Latitude,
+                           fill  = Future_Return_Intervals) +
+          
+                       facet_grid(cols = vars(Scenario)) +
+          
+                       theme_bw() +
+                       theme(strip.background = element_rect(fill=NA))+
+          
+                       labs(title    = "LOCA Climate Ensemble Analyses",
+                            subtitle = str_c("Max Daily Rainfall ",
+                                             Target_Return_Interval,
+                                             "-y Return Period Changes from Historical",
+                                             base_start,
+                                             "-",
+                                             base_end,
+                                             " Period",
+                                             sep = "")) +
+      
+                  labs(caption = "Aggregated climate zone means across LOCA ensembles") + 
+
+          
+                       xlab(label = "Longitude") + 
+          
+                       ylab(label = "Latitude") +
+            
+             
+                       coord_fixed(xlim   = c(min(Longitude), max(Longitude)),
+                                   ylim   = c(min(Latitude),  max(Latitude)),
+                                   expand = FALSE,
+                                   ratio = (lon_width / lat_width) )+
+             
+             
+                       scale_fill_gradient2(  low = ("blue"), 
+                                              mid = "white",
+                                              high = ("red"), 
+                                              midpoint = Target_Return_Interval, 
+                                              name     = "Mean\nFuture\nReturn\nPeriod",
+                                              space = "Lab",
+                                              na.value = "grey50", 
+                                              guide = "colourbar", 
+                                              aesthetics = "fill",
+                                              limits = c( color_value_min,
+                                                          color_value_max) ) +     
+      
+            
+      
+          
+                       geom_raster(data    = subset,
+                                   mapping = aes(x     = Longitude,
+                                                 y     = Latitude,
+                                                 fill  = Future_Return_Intervals))  +
+
+                 
+
+                       geom_polygon(data    = usa_data,
+                                    mapping = aes(x     =   long, 
+                                                  y     =    lat,
+                                                  group =  group),
+                                    fill  = NA, 
+                                    color = "black")  + 
+  
+                      geom_polygon(data     = water_data,
+                                    mapping = aes(x     =   long, 
+                                                  y     =    lat,
+                                                  group =  group),
+                                    fill  = NA, 
+                                    color = "black")  + 
+            
+                      geom_polygon(data     = canadian_provinces,
+                                    mapping = aes(x     =   long, 
+                                                  y     =    lat,
+                                                  group =  group),
+                                    fill  = NA, 
+                                    color = "black")  
+    
+          ggsave(filename = str_c("./Return_Periods_",
+                        Target_Return_Interval,"-yr",
+                        '_',
+                        per1_start,"-",
+                        per1_end,
+                        "_LOCA_MAP.png",
+                        sep = ""),
+             plot = outplot,
+             device = "png", width = 7, height = 4.32419)
+  
+    print(outplot)
+
+}    
+
+```
+
+
+            
+
+```{r} 
+
+
+  delete_me_historical =  Resampled_Climate_Zone_Returns %>% 
+                  filter(str_detect(string  = Scenario,
+                                    pattern = "RCP 4.5"))
+
+  delete_me_historical$Future_Return_Intervals = as.numeric(delete_me_historical$Historical_Return_Intervals)
+  delete_me_historical$Scenario                = base_string
+  
+  
+  all_three_types = rbind(delete_me_historical,Resampled_Climate_Zone_Returns)
+  
+  all_three_types$Scenario = as.factor(all_three_types$Scenario )
+
+
+   z = 1
+   climate_zones_to_loop_through = seq(from = 3901,
+                                       to   = 3909,
+                                       by   = 1)
+  for (Target_Zone in sort(climate_zones_to_loop_through)) {
+    
+        lut_k = which(Climate_Zones_Name_LUT$Full_Zone_Code == Target_Zone)
+
+    
+        print(str_c(" ",
+            "  Processing Zone ",
+            Target_Zone,
+            " [",
+            (z*100. / length(climate_zones_to_loop_through) ),
+            "%] ",str_c("Climate Zone -",
+                                           Climate_Zones_Name_LUT$State_Name[lut_k],
+                                           " : ",
+                                           Climate_Zones_Name_LUT$Zone_Name[lut_k],
+                                            "  (",Target_Zone, ")",
+                                            sep = ""),
+            sep=""))
+  
+  
+    Local_Resampled_Climate_Zone_Returns = all_three_types %>% filter(Climate_Zones == Target_Zone)
+    
+    outplot = ggplot(data = Local_Resampled_Climate_Zone_Returns) + 
+    
+                  aes(x     = Max_Daily_Rainfall,
+                      y     = Future_Return_Intervals,
+                      color = Scenario) +
+                
+                  theme_bw() +
+                
+                  theme(legend.position       = c(0.02, 0.98),
+                        legend.justification  = c(0.00, 1.00)) + 
+                
+                
+                
+                
+                  ggtitle(label    =  "LOCA-Derived Changes in Daily Rainfall Return Events",
+                          subtitle = str_c("Climate Zone -",
+                                           Climate_Zones_Name_LUT$State_Name[lut_k],
+                                           " : ",
+                                           Climate_Zones_Name_LUT$Zone_Name[lut_k],
+                                            "  (",Target_Zone, ")",
+                                            sep = "")) +  
+      
+                  labs(caption = "Aggregated climate zone means across LOCA ensembles") + 
+                
+                  xlab(label = "Daily Rainfall (mm)") +
+                
+                  ylab(label = "Return Periods (years)") +
+                
+              
+                  scale_colour_manual(values = c("blue", "orange", "red")) + 
+                
+                  scale_x_continuous() + 
+                
+                  ylim( 0, max(all_three_types$Future_Return_Intervals)) + 
+              
+                  geom_line()
+    
+    
+              ggsave(filename = str_c("./Return_Periods_CZ-",
+                        Target_Zone,
+                        '_',
+                        per1_start,"-",
+                        per1_end,
+                        "_LOCA_Climate_Zones.png",
+                        sep = ""),
+             plot = outplot,
+             device = "png", width = 7, height = 4.32419)
+    
+      print(outplot)
+      z= z+1
+
+  }
+
+
+```

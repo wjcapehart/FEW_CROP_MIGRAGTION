@@ -1,0 +1,355 @@
+---
+title: "Mapping Loca"
+output: html_notebook
+---
+
+# 1 Introduction
+
+This script processes annual LOCA and GHCN temperature and rainfall.
+
+The climate model output comes from the USGS [LOCA](http://loca.ucsd.edu) Downscaled Analyses from the CMIP5 climate model runs from 27 models.  (There were a total of 32 models used for these analyses but we are only using the model runs that include maximum/miniumum temperature, and precipitation.)
+
+**Table for Available LOCA CMIP5 Point Stations**
+
+CMIP5 Models        | CMIP5 Models          | CMIP5 Models
+--------------------|-----------------------|---------------------
+ACCESS1.0_r1i1p1    | ACCESS1.3_r1i1p1      | CCSM4_r6i1p1         
+CESM1.BGC_r1i1p1    | CESM1.CAM5_r1i1p1     | CMCC.CMS_r1i1p1      
+CMCC.CM_r1i1p1      | CNRM.CM5_r1i1p1       | CSIRO.Mk3.6.0_r1i1p1 
+CanESM2_r1i1p1      | FGOALS.g2_r1i1p1      | GFDL.CM3_r1i1p1      
+GFDL.ESM2G_r1i1p1   | GFDL.ESM2M_r1i1p1     | HadGEM2.AO_r1i1p1    
+HadGEM2.CC_r1i1p1   | HadGEM2.ES_r1i1p1     | IPSL.CM5A.LR_r1i1p1  
+IPSL.CM5A.MR_r1i1p1 | MIROC.ESM.CHEM_r1i1p1 | MIROC.ESM_r1i1p1     
+MIROC5_r1i1p1       | MPI.ESM.LR_r1i1p1     | MPI.ESM.MR_r1i1p1    
+MRI.CGCM3_r1i1p1    | NorESM1.M_r1i1p1      | bcc.csm1.1.m_r1i1p1
+
+The result is an *ensemble* of 27 independant virtual earths for our simulation period from 1950 to 2099.
+
+The simulations further diverge at 2006 where our model runs separate into two scenarios.
+
+* **RCP 4.5**: A simulation targeting a total amount of 4.5 W m^2^ addition greenhouse forcing 
+* **RCP 8.5**: A simulation targeting a total amount of 8.5 W m^2^ addition greenhouse forcing 
+
+Together, we use these two future cases to reprsent upper and lower bounds of likely expected future climates depending on current and projected greenhouse gas emissions. (The "RPC" stands for ["Representative Pathway Concentration"](https://link.springer.com/article/10.1007/s10584-011-0148-z))
+
+
+
+# 2  Libraries
+
+* Install Us First
+  + [tidyverse](https://www.tidyverse.org) : Set of commonly-used Data Science packages for R that it can install and load all at once. In the long-run you probably also want to install the tidyverse package suite anyway. For this exercise this will include...
+    - [gplot2](https://ggplot2.tidyverse.org) : Create Elegant Data Visualizations Using the Grammar of Graphics
+    - [tidyr](https://tidyr.tidyverse.org) : tools for shepherding data in data frames.
+    - [stringr](https://stringr.tidyverse.org) : Simple, Consistent Wrappers for Common String Operations
+
+
+  + Additoinal Tidyverse Resources
+    - [lubridate](http://lubridate.tidyverse.org) : Date-Time Control
+
+
+  + NetCDF Resource
+    - [ncdf4](https://www.rdocumentation.org/packages/ncdf4/versions/1.16) : NetCDF and OPEnDAP Support
+    - [ncdf4.helpers](https://www.rdocumentation.org/packages/ncdf4.helpers/versions/0.3-3) : Additional tools to work with NetCDF & OPEeNDAP files
+    
+  + Mapping Resources
+    [maps](https://www.rdocumentation.org/packages/maps/versions/3.3.0) : Display of maps. Projection code and larger maps are in separate packages ('mapproj' and 'mapdata').
+    [mapproj](https://www.rdocumentation.org/packages/mapproj/versions/1.2.6) : Converts latitude/longitude into projected coordinates.
+    [sf](https://www.rdocumentation.org/packages/sf/versions/0.6-3) : Support for simple features, a standardized way to encode spatial vector data
+  
+```{r}
+
+# Libraries
+
+  # Tidyverse Packates
+
+  library(package = "tidyverse") # bulk frequently-used tidyverse packages
+  library(package = "lubridate") # tidyverse date-time support'
+
+
+  library(package = "PCICt") # Implementation of POSIXct Work-Alike for 365 and 360 Day Calendars
+
+
+  # Mapping  support
+  library(package = "maps")
+  library(package = "mapproj")
+  library(package = "rgdal")
+  library(package = "rgeos")
+
+  # array -> dataframe
+  library(package = "reshape2")
+
+```
+
+
+# 3 Scenerio Information
+
+
+```{r}
+
+  # Region 
+
+  region = "LOCA_NGP"
+
+  # Ensemble Members
+
+
+```
+
+
+# 4 LOCA Files, Directory and OPeNDAP URLS (includes coordinate extraction)
+
+```{r}
+
+  # directories 
+
+  root_loc = "http://kyrill.ias.sdsmt.edu:8080/thredds/fileServer/"
+
+
+
+```
+
+# 5 Import Mask Data
+
+```{r}
+
+  # masking information 
+
+
+  load( file = "./NGP_MASKS.Rdata" )
+
+  ngp_regions$Ecoregions_Mask[is.na(ngp_regions$Ecoregions_Mask) |
+                              (ngp_regions$Ecoregions_Mask == 1)  ] = 0
+
+  ngp_regions$Ecoregions_Mask[ngp_regions$Ecoregions_Mask >1] = 1
+
+  lat_lon_string_mask = ngp_regions %>% filter(Ecoregions_Mask > 0)
+  lat_lon_string_mask = lat_lon_string_mask$lat_lon_string_mask
+  
+
+  lon = ngp_regions$lon_mask
+
+  lat = ngp_regions$lat_mask
+
+
+```
+
+
+```{r}
+
+  # decades
+
+  year_start = seq(from = 1950,
+                   to   = 2090,
+                   by   =   10)
+
+
+  year_end =  seq(from = 1959,
+                  to   = 2099,
+                  by   =   10)
+  
+  decade_strings = str_c(year_start,
+                         year_end,
+                         sep = "-")
+  
+  remove(year_start)
+  remove(year_end)
+  
+```
+
+# 6 Import Mapping Data
+
+US and Lake Data is Available in R.  Canadian Data isn't so we have a custom polygon library
+
+```{r}
+load(file = "./canadian_provinces.Rdata")
+# inported field is canada_data = canadian_provinces
+
+
+usa_data   = map_data(map="state", 
+                      xlim=c(-114.2812, -86.21875),  
+                      ylim=c (33.96875,  52.78125) ) 
+water_data = map_data(map="lakes", 
+                      xlim=c(-114.2812,-86.21875),  
+                      ylim=c( 33.96875, 52.78125) ) 
+
+```
+
+
+
+
+# 7 Loop Through Decades
+
+```{r}
+
+# Create the function.
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+
+decade_string = decade_strings[1]
+for (decade_string in decade_strings)
+{
+
+       print(decade_string)
+  
+       loca_file_name =  str_c(root_loc,
+                         region,
+                         "/",
+                         "climatology",
+                         "/",
+                         "DECADALS/Rdata/",
+                         "LOCA_NGP_DECADAL_ALL_MEMBERS_",
+                         decade_string,
+                         ".Rdata",
+                         sep="")
+        
+        load(file = url(loca_file_name))
+      
+        
+        loca = as.data.frame(loca)
+
+        
+        scenarios = unique(loca$scenario)
+
+        
+        loca$lat_lon_string_loca = str_c(round(loca$lon,2),
+                                         "_",
+                                         round(loca$lat,2),
+                                         sep = "")
+        
+        set_to_NA = which(!loca$lat_lon_string_loca %in% lat_lon_string_mask)
+
+        loca$Max_Temp[set_to_NA] = NA
+        loca$Min_Temp[set_to_NA] = NA
+        loca$Avg_Temp[set_to_NA] = NA
+        loca$Precip[set_to_NA]   = NA
+        
+        loca_mean = loca %>% group_by(lon, lat, scenario) %>% 
+                             summarize(Avg_Temp = mean(Avg_Temp),
+                                       Precip   = mean(Precip))
+
+        mymap = ggplot(data   =   loca)  + 
+          
+                       aes(x     = lon,
+                           y     = lat) +
+          
+                       facet_grid(cols = vars(scenario)) +
+          
+                       theme_bw() +
+                       theme(strip.background = element_rect(fill=NA))+
+          
+                       labs(title    = "LOCA Climate Ensemble Analyses",
+                            subtitle = decade_string,
+                            caption  = str_c(           "Red: Annual Mean 7°C Isotherm\n",
+                                                    "Blue: Annual Total 600 mm Isohyet\n",
+                                                    "Cyan: Annual Total 450 mm Isohyet")) +
+          
+                       xlab(label = "Longitude") + 
+          
+                       ylab(label = "Latitude") +
+          
+                       coord_map(xlim=c(min(lon), max(lon)),
+                                 ylim=c(min(lat), max(lat)) )  +
+
+                       geom_polygon(data    = usa_data,
+                                    mapping = aes(x     =   long, 
+                                                  y     =    lat,
+                                                  group =  group),
+                                    fill  = NA, 
+                                    color = "black")  + 
+  
+                      geom_polygon(data  = water_data,
+                                    mapping = aes(x     =   long, 
+                                                  y     =    lat,
+                                                  group =  group),
+                                    fill  = NA, 
+                                    color = "black")  + 
+            
+                      geom_polygon(data  = canadian_provinces,
+                                    mapping = aes(x     =   long, 
+                                                  y     =    lat,
+                                                  group =  group),
+                                    fill  = NA, 
+                                    color = "black")  + 
+          
+                      geom_contour(data    = ngp_regions,
+                                    alpha   =  1, 
+                                    color   = c("darkgrey"),
+                                    size    = 1.1,
+                                    breaks  = c( 1),
+                                    mapping = aes(x     = lon_mask,
+                                                  y     = lat_mask,
+                                                  group = NA,
+                                                  color = NA,
+                                                  z     = Ecoregions_Mask)) +
+          
+
+                       geom_contour(data    = loca,
+                                    alpha   = .1, 
+                                    breaks  = c(7),
+                                    color   = "red",
+                                    mapping = aes(x     = lon,
+                                                  y     = lat,
+                                                  group = ensemble,
+                                                  color = NA,
+                                                  z     = Avg_Temp)) +
+          
+                       geom_contour(data    = loca_mean,
+                                    alpha   = .1, 
+                                    breaks  = c(7),
+                                    color   = "darkred",
+                                    mapping = aes(x     = lon,
+                                                  y     = lat,
+                                                  group = NA,
+                                                  color = NA,
+                                                  z     = Avg_Temp)) +          
+
+          
+          
+                       geom_contour(data    = loca,
+                                    alpha   = .1, 
+                                    breaks  = c(450,600),
+                                    mapping = aes(x     = lon,
+                                                  y     = lat,
+                                                  group = ensemble,
+                                                  color = ..level..,
+                                                  z     = Precip)) +
+          
+                       scale_color_continuous(breaks = c(450,600),
+                                              low    = "cyan",
+                                              high   = "blue",
+                                              guide  = FALSE) +
+          
+          
+
+  
+                       geom_contour(data    = loca_mean,
+                                    alpha   = 1, 
+                                    breaks  = c(450,600),
+                                    mapping = aes(x     = lon,
+                                                  y     = lat,
+                                                  group = NA,
+                                                  color = ..level..,
+                                                  z     = Precip)) +
+          
+                       scale_color_continuous(breaks = c(450,600),
+                                              low    = "darkcyan",
+                                              high   = "darkblue",
+                                              guide  = FALSE) 
+          
+              
+        ggsave(filename = str_c("./",
+                                decade_string,
+                                "_LOCA_MAP.png",
+                                sep = ""),
+               plot = mymap,
+               device = "png")
+        
+        print(mymap)
+
+}          
+                       
+
+```

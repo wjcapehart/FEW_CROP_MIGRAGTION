@@ -1,0 +1,40 @@
+---
+title: "PI Test"
+output: html_notebook
+---
+
+
+
+```{r}
+
+
+library("foreach")
+
+
+```
+
+
+```{r}
+
+n = 16.0
+
+h = 1.0 / n
+ 
+piparts = 0
+
+foreach (i = 1:n, .combine='rbind') %dopar% {
+  
+    x   = h * (i - 0.5)
+
+    piparts = piparts + 4.0 / (1.0 + x*x) * h
+    
+    print(c(i, x, piparts))
+
+}
+
+
+print(piparts)
+
+```
+
+
