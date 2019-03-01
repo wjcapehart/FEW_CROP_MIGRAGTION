@@ -153,6 +153,9 @@ water_data = map_data(map="lakes",
 
 
 ```{r}
+   color_value_min = 0
+   
+   color_value_max = max(Resampled_Climate_Zone_Returns$Future_Return_Intervals)
 
 
 Target_Return_Interval = 20
@@ -171,9 +174,6 @@ for (Target_Return_Interval in Return_Intervals) {
    lon_width = max(Longitude) - min(Longitude)
    lat_width = max(Latitude) - min(Latitude)
    
-   color_value_min = max(c(min(mapping$Future_Return_Intervals,na.rm=TRUE),0))
-   
-   color_value_max = max(mapping$Future_Return_Intervals)
 
   
 
