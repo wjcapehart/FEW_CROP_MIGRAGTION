@@ -18,7 +18,7 @@ setfileoption("nc","Format","NetCDF4")
             "Y_MEAN_MONTHLY_MIN_1951-2095"+ ".nc"
 
 
-    ensembles = (/ "ACCESS1-0_r1i1p1",  \
+    ensemble = (/ "ACCESS1-0_r1i1p1",  \
                    "ACCESS1-3_r1i1p1",  \
                    "CCSM4_r6i1p1",  \
                    "CESM1-BGC_r1i1p1",  \
@@ -47,11 +47,11 @@ setfileoption("nc","Format","NetCDF4")
                    "bcc-csm1-1-m_r1i1p1" /)
 
 
-  n_ens = dimsizes(ensembles)
-  ensembles!0 = "ensembles"
-  ensembles&ensembles = ensembles
-  ensembles@description = "CMIP5 Ensemble Members"
-  ensembles@long_name = "CMIP5 Ensemble Members"
+  n_ens = dimsizes(ensemble)
+  ensemble!0 = "ensemble"
+  ensemble&ensemble = ensemble
+  ensemble@description = "CMIP5 Ensemble Members"
+  ensemble@long_name = "CMIP5 Ensemble Members"
 
   scenario = (/ "hist/rcp45", "rcp85" /)
   scenario!0 = "scenario"
@@ -62,9 +62,9 @@ setfileoption("nc","Format","NetCDF4")
 
 
 
-  f_hist = addfile("/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/1950-2005/MONTHLY/tasmin/LOCA_NGP_tasmin_ACCESS1-0_r1i1p1_historical_1950-2005_CDO_MONTLY_MEAN.nc","r")
-  f_rcp4 = addfile("/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/2006-2099/MONTHLY/tasmin/LOCA_NGP_tasmin_ACCESS1-0_r1i1p1_rcp45_2006-2099_CDO_MONTLY_MEAN.nc","r")
-  f_rcp8 = addfile("/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/2006-2099/MONTHLY/tasmin/LOCA_NGP_tasmin_ACCESS1-0_r1i1p1_rcp48_2006-2099_CDO_MONTLY_MEAN.nc","r")
+  f_hist = addfile("/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/1950-2005/MONTHLY/tasmin/LOCA_NGP_tasmin_ACCESS1-0_r1i1p1_historical_1950-2005_CDO_MONTLY_MIN.nc","r")
+  f_rcp4 = addfile("/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/2006-2099/MONTHLY/tasmin/LOCA_NGP_tasmin_ACCESS1-0_r1i1p1_rcp45_2006-2099_CDO_MONTLY_MIN.nc","r")
+  f_rcp8 = addfile("/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/2006-2099/MONTHLY/tasmin/LOCA_NGP_tasmin_ACCESS1-0_r1i1p1_rcp48_2006-2099_CDO_MONTLY_MIN.nc","r")
 
   lon      = f_hist->lon
   lat      = f_hist->lat
@@ -91,6 +91,7 @@ setfileoption("nc","Format","NetCDF4")
   time          = new(n_time, "integer")
   time@units    = time_units
   time@calendar = "standard"
+  time@bounds    = "time_bnds"
   time@standard_name = "time"
   time@axis          = "T"
 
@@ -150,7 +151,7 @@ setfileoption("nc","Format","NetCDF4")
   t_min!4 = "lon"
 
   t_min&time      = time
-  t_min&ensemble  = ensembles
+  t_min&ensemble  = ensemble
   t_min&scenario  = scenario
   t_min&lat  = lat
   t_min&lon = lon
@@ -170,26 +171,26 @@ delete(f_hist)
 delete(f_rcp8)
 delete(f_rcp4)
 
-print(ensembles)
+print(ensemble)
 
 do ens = 0, n_ens-1
 
   print(" ")
-  print(" "+ens+":"+ (n_ens-1)  +" "+ ensembles(ens))
+  print(" "+ens+":"+ (n_ens-1)  +" "+ ensemble(ens))
   print(" ")
 
 
-  file_hist = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/1950-2005/MONTHLY/tasmin/LOCA_NGP_tasmin_" + ensembles(ens) + "_historical_1950-2005_CDO_MONTLY_MEAN.nc"
-  file_rcp4 = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/2006-2099/MONTHLY/tasmin/LOCA_NGP_tasmin_" + ensembles(ens) + "_rcp45_2006-2099_CDO_MONTLY_MEAN.nc"
-  file_rcp8 = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/2006-2099/MONTHLY/tasmin/LOCA_NGP_tasmin_" + ensembles(ens) + "_rcp85_2006-2099_CDO_MONTLY_MEAN.nc"
+  file_hist = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/1950-2005/MONTHLY/tasmin/LOCA_NGP_tasmin_" + ensemble(ens) + "_historical_1950-2005_CDO_MONTLY_MIN.nc"
+  file_rcp4 = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/2006-2099/MONTHLY/tasmin/LOCA_NGP_tasmin_" + ensemble(ens) + "_rcp45_2006-2099_CDO_MONTLY_MIN.nc"
+  file_rcp8 = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/2006-2099/MONTHLY/tasmin/LOCA_NGP_tasmin_" + ensemble(ens) + "_rcp85_2006-2099_CDO_MONTLY_MIN.nc"
 
   f_hist = addfile(file_hist,"r")
   f_rcp4 = addfile(file_rcp4,"r")
   f_rcp8 = addfile(file_rcp8,"r")
 
-  v_hist = "tasmin_" + ensembles(ens) + "_historical"
-  v_rcp4 = "tasmin_" + ensembles(ens) + "_rcp45"
-  v_rcp8 = "tasmin_" + ensembles(ens) + "_rcp85"
+  v_hist = "tasmin_" + ensemble(ens) + "_historical"
+  v_rcp4 = "tasmin_" + ensemble(ens) + "_rcp45"
+  v_rcp8 = "tasmin_" + ensemble(ens) + "_rcp85"
 
   packopt = True
     packopt@scale_factor = 0.1
@@ -202,7 +203,7 @@ do ens = 0, n_ens-1
 
         capture_indexes = ind( (time_hist .ge. time_bnds(i,0))  .and.   (time_hist .le. time_bnds(i,1)) )
 
-        print(ensembles(ens) + " :: " +   sprinti("%0.3i", i)+ " - " + sprinti("%2i", mode(i)) + " - (" + year_start(i) +"-"+ year_end(i)+  ") " + min(capture_indexes) + "-" + max(capture_indexes) )
+        print(ensemble(ens) + " :: " +   sprinti("%0.3i", i)+ " - " + sprinti("%2i", mode(i)) + " - (" + year_start(i) +"-"+ year_end(i)+  ") " + min(capture_indexes) + "-" + max(capture_indexes) )
 
 
         inarr = short2flt(f_hist->$v_hist$(capture_indexes,:,:))
@@ -224,7 +225,7 @@ do ens = 0, n_ens-1
 
         capture_indexes = ind( (time_futr .ge. time_bnds(i,0))  .and.   (time_futr .le. time_bnds(i,1)) )
 
-        print(ensembles(ens) + " :: " +  sprinti("%0.3i", i)+ " | " + sprinti("%2i", mode(i)) + " - (" + year_start(i) +"-"+ year_end(i)+  ") " + min(capture_indexes) + "-" + max(capture_indexes) )
+        print(ensemble(ens) + " :: " +  sprinti("%0.3i", i)+ " | " + sprinti("%2i", mode(i)) + " - (" + year_start(i) +"-"+ year_end(i)+  ") " + min(capture_indexes) + "-" + max(capture_indexes) )
 
 
         inarr = short2flt(f_rcp4->$v_rcp4$(capture_indexes,:,:))
@@ -261,7 +262,7 @@ do ens = 0, n_ens-1
         capture_indexes_hist = ind( (time_hist .ge. time_bnds(i,0))  )
         capture_indexes_futr = ind( (time_futr .le. time_bnds(i,1)) )
 
-        print(ensembles(ens) + " :: " +   sprinti("%0.3i", i)+ " * " + sprinti("%2i", mode(i)) + " - (" + year_start(i) +"-"+ year_end(i)+  ") " + min(capture_indexes_hist) + "-" + max(capture_indexes_hist) +"  ::  " + min(capture_indexes_futr) + "-" + max(capture_indexes_futr) )
+        print(ensemble(ens) + " :: " +   sprinti("%0.3i", i)+ " * " + sprinti("%2i", mode(i)) + " - (" + year_start(i) +"-"+ year_end(i)+  ") " + min(capture_indexes_hist) + "-" + max(capture_indexes_hist) +"  ::  " + min(capture_indexes_futr) + "-" + max(capture_indexes_futr) )
 
 
         inarr_hist = short2flt(f_hist->$v_hist$(capture_indexes_hist,:,:))
@@ -312,6 +313,11 @@ end do
 system("rm -frv " + outfile)
 f_new = addfile(outfile,"c")
 f_new->tasmin_running_avg = t_min
+f_new->lon_bnds = lon_bnds
+f_new->lat_bnds = lat_bnds
+f_new->time_bnds = time_bnds
+
+
 delete(f_new)
 
 
