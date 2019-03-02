@@ -180,9 +180,9 @@ do ens = 0, n_ens-1
   print(" ")
 
 
-  file_hist = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/1950-2005/ANNUAL/tasmin/LOCA_NGP_tasmin_" + ensemble(ens) + "_historical_1950-2005_CDO_MONTLY_MIN.nc"
-  file_rcp4 = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/2006-2099/ANNUAL/tasmin/LOCA_NGP_tasmin_" + ensemble(ens) +      "_rcp45_2006-2099_CDO_MONTLY_MIN.nc"
-  file_rcp8 = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/2006-2099/ANNUAL/tasmin/LOCA_NGP_tasmin_" + ensemble(ens) +      "_rcp85_2006-2099_CDO_MONTLY_MIN.nc"
+  file_hist = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/1950-2005/ANNUAL/tasmin/LOCA_NGP_tasmin_" + ensemble(ens) + "_historical_1950-2005_CDO_ANNUAL_MIN.nc"
+  file_rcp4 = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/2006-2099/ANNUAL/tasmin/LOCA_NGP_tasmin_" + ensemble(ens) +      "_rcp45_2006-2099_CDO_ANNUAL_MIN.nc"
+  file_rcp8 = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/2006-2099/ANNUAL/tasmin/LOCA_NGP_tasmin_" + ensemble(ens) +      "_rcp85_2006-2099_CDO_ANNUAL_MIN.nc"
 
   f_hist = addfile(file_hist,"r")
   f_rcp4 = addfile(file_rcp4,"r")
