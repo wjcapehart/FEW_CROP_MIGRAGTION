@@ -13,9 +13,9 @@ setfileoption("nc","Format","NetCDF4")
   print(2005 - period + 1 - start_year + 1)
 
 
-  outfile = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/MONTHLY/tasmin/" + \
-            "LOCA_NGP_tasmin_allensembles_allscenarios_" + sprinti("%0.2i", period) + \
-            "Y_MEAN_MONTHLY_MIN_1951-2095"+ ".nc"
+  outfile = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/ANNUAL/tasmin/" + \
+            "LOCA_NGP_tasmin_allensembles_allscenarios_2006-2099_" + sprinti("%0.2i", period) + \
+            "Y_MEAN_ANNUAL_MIN"+ ".nc"
 
 
     ensemble = (/ "ACCESS1-0_r1i1p1",  \
@@ -62,9 +62,9 @@ setfileoption("nc","Format","NetCDF4")
 
 
 
-  f_hist = addfile("/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/1950-2005/MONTHLY/tasmin/LOCA_NGP_tasmin_ACCESS1-0_r1i1p1_historical_1950-2005_CDO_MONTLY_MIN.nc","r")
-  f_rcp4 = addfile("/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/2006-2099/MONTHLY/tasmin/LOCA_NGP_tasmin_ACCESS1-0_r1i1p1_rcp45_2006-2099_CDO_MONTLY_MIN.nc","r")
-  f_rcp8 = addfile("/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/2006-2099/MONTHLY/tasmin/LOCA_NGP_tasmin_ACCESS1-0_r1i1p1_rcp48_2006-2099_CDO_MONTLY_MIN.nc","r")
+  f_hist = addfile("/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/1950-2005/ANNUAL/tasmin/LOCA_NGP_tasmin_ACCESS1-0_r1i1p1_historical_1950-2005_CDO_YEARLY_MIN.nc","r")
+  f_rcp4 = addfile("/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/2006-2099/ANNUAL/tasmin/LOCA_NGP_tasmin_ACCESS1-0_r1i1p1_rcp45_2006-2099_CDO_YEARLY_MIN.nc","r")
+  f_rcp8 = addfile("/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/2006-2099/ANNUAL/tasmin/LOCA_NGP_tasmin_ACCESS1-0_r1i1p1_rcp48_2006-2099_CDO_YEARLY_MIN.nc","r")
 
   lon      = f_hist->lon
   lat      = f_hist->lat
@@ -180,9 +180,9 @@ do ens = 0, n_ens-1
   print(" ")
 
 
-  file_hist = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/1950-2005/MONTHLY/tasmin/LOCA_NGP_tasmin_" + ensemble(ens) + "_historical_1950-2005_CDO_MONTLY_MIN.nc"
-  file_rcp4 = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/2006-2099/MONTHLY/tasmin/LOCA_NGP_tasmin_" + ensemble(ens) + "_rcp45_2006-2099_CDO_MONTLY_MIN.nc"
-  file_rcp8 = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/2006-2099/MONTHLY/tasmin/LOCA_NGP_tasmin_" + ensemble(ens) + "_rcp85_2006-2099_CDO_MONTLY_MIN.nc"
+  file_hist = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/1950-2005/ANNUAL/tasmin/LOCA_NGP_tasmin_" + ensemble(ens) + "_historical_1950-2005_CDO_MONTLY_MIN.nc"
+  file_rcp4 = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/2006-2099/ANNUAL/tasmin/LOCA_NGP_tasmin_" + ensemble(ens) +      "_rcp45_2006-2099_CDO_MONTLY_MIN.nc"
+  file_rcp8 = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/2006-2099/ANNUAL/tasmin/LOCA_NGP_tasmin_" + ensemble(ens) +      "_rcp85_2006-2099_CDO_MONTLY_MIN.nc"
 
   f_hist = addfile(file_hist,"r")
   f_rcp4 = addfile(file_rcp4,"r")

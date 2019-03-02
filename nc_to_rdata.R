@@ -18,14 +18,14 @@ library(package = "reshape2")
 library(package = "ncdf4")
 library(package = "ncdf4.helpers")
 
-# file 
+# file
 
-file_url = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/MONTHLY/tasmin//LOCA_NGP_tasmin_allensembles_allscenarios_30Y_MEAN_MONTHLY_MIN_1951-2095.nc"
+file_url = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/ANNUAL/tasmin/LOCA_NGP_tasmin_allensembles_allscenarios_2006-2099_30Y_MEAN_ANNUAL_MIN.nc"
 
 
-ncngp  = nc_open(filename = file_url) 
+ncngp  = nc_open(filename = file_url)
 
-lon         =  ncvar_get(nc    = ncngp, 
+lon         =  ncvar_get(nc    = ncngp,
                          varid = "lon")
 
 lat         =  ncvar_get(nc    = ncngp,
@@ -35,11 +35,11 @@ ensemble    = ncvar_get(nc    = ncngp,
                         varid = "ensemble")
 
 scenario    = ncvar_get(nc    = ncngp,
-                        varid = "scenario")  
+                        varid = "scenario")
 
-time        = nc.get.time.series(f                            = ncngp, 
-                                 v                            = "tasmin_running_avg", 
-                                 time.dim.name                = "time", 
+time        = nc.get.time.series(f                            = ncngp,
+                                 v                            = "tasmin_running_avg",
+                                 time.dim.name                = "time",
                                  correct.for.gregorian.julian = FALSE,
                                  return.bounds                = TRUE)
 
@@ -64,7 +64,7 @@ time_bnds  = str_c(time_bnds0,"-",time_bnds1)
 
 
 tmin        = ncvar_get(nc    = ncngp,
-                        varid = "tasmin_running_avg") 
+                        varid = "tasmin_running_avg")
 
 dimnames(tmin) = list("lon"       = lon,
                       "lat"       = lat,
@@ -110,6 +110,6 @@ save(time,
      lon,
      lat,
      average_minimum_temperature = tmin,
-     file = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/MONTHLY/tasmin//LOCA_NGP_tasmin_allensembles_allscenarios_30Y_MEAN_MONTHLY_MIN_1951-2095.RData")
+     file = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/ANNUAL/tasmin/LOCA_NGP_tasmin_allensembles_allscenarios_2006-2099_30Y_MEAN_ANNUAL_MIN.nc")
 
 remove(ncngp)
