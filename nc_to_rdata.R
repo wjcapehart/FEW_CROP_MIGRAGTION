@@ -5,11 +5,6 @@ library(package = "lubridate") # tidyverse date-time support'
 library(package = "PCICt") # Implementation of POSIXct Work-Alike for 365 and 360 Day Calendars
 
 
-# Mapping  support
-library(package = "maps")
-library(package = "mapproj")
-library(package = "rgdal")
-library(package = "rgeos")
 
 # array -> dataframe
 library(package = "reshape2")
@@ -110,6 +105,6 @@ save(time,
      lon,
      lat,
      average_minimum_temperature = tmin,
-     file = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/ANNUAL/tasmin/LOCA_NGP_tasmin_allensembles_allscenarios_2006-2099_30Y_MEAN_ANNUAL_MIN.nc")
+     file = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/ANNUAL/tasmin/LOCA_NGP_tasmin_allensembles_allscenarios_2006-2099_30Y_MEAN_ANNUAL_MIN.RData")
 
 remove(ncngp)
