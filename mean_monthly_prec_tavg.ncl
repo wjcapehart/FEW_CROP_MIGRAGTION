@@ -37,17 +37,7 @@ setfileoption("nc","Format","NetCDF4")
   n_years = dimsizes(year_start)
 
 
-  year_start!0    = "time"
-  year_start&time = time
-  year_start@description = "start year for climate period"
-  year_start@long_name   = "start year for climate period"
-  year_start@units       = "years since 0000-01-01 00:00:00"
 
-  year_end!0    = "time"
-  year_end&time = time
-  year_end@description = "start year for climate period"
-  year_end@long_name   = "start year for climate period"
-  year_end@units       = "years since 0000-01-01 00:00:00"
 
 
 
@@ -107,9 +97,6 @@ setfileoption("nc","Format","NetCDF4")
 
 
   climatology_bounds             = new((/ n_years, 2 /),"integer")
-  climatology_bounds!0           = "time"
-  climatology_bounds&time
-  climatology_bounds!1           = "bnds"
 
   climatology_bounds@units       = time_units
   climatology_bounds@calendar    = "standard"
@@ -156,7 +143,8 @@ setfileoption("nc","Format","NetCDF4")
   time&time = time
   delete(time@_FillValue)
 
-  climatology_bounds!0 = "time"
+  climatology_bounds!0    = "time"
+  climatology_bounds!1    = "bnds"
   climatology_bounds&time = time
   delete(climatology_bounds@_FillValue)
 
@@ -185,6 +173,19 @@ setfileoption("nc","Format","NetCDF4")
   t_min@cell_methods  = variable@cell_methods
   t_min@scale_factor  = 0.1
   t_min@add_offset    = 0.0
+
+
+  year_start!0    = "time"
+  year_start&time = time
+  year_start@description = "start year for climate period"
+  year_start@long_name   = "start year for climate period"
+  year_start@units       = "years since 0000-01-01 00:00:00"
+
+  year_end!0    = "time"
+  year_end&time = time
+  year_end@description = "end year for climate period"
+  year_end@long_name   = "end year for climate period"
+  year_end@units       = "years since 0000-01-01 00:00:00"
 
 print(" ")
 
