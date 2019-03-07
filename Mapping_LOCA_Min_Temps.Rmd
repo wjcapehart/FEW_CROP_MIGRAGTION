@@ -1,5 +1,5 @@
 ---
-title: "Mapping Loca"
+title: "Mapping LOCA for USDA Growing Zones"
 output: html_notebook
 ---
 
@@ -25,7 +25,7 @@ MRI.CGCM3_r1i1p1    | NorESM1.M_r1i1p1      | bcc.csm1.1.m_r1i1p1
 
 The result is an *ensemble* of 27 independant virtual earths for our simulation period from 1950 to 2099.
 
-The simulations further diverge at 2006 where our model runs separate into two scenarios.
+The simulations further diverge at 2006 where our ensemble members separate into two scenarios.
 
 * **RCP 4.5**: A simulation targeting a total amount of 4.5 W m^2^ addition greenhouse forcing
 * **RCP 8.5**: A simulation targeting a total amount of 8.5 W m^2^ addition greenhouse forcing
@@ -78,6 +78,8 @@ Together, we use these two future cases to reprsent upper and lower bounds of li
   # array -> dataframe
   library(package = "reshape2")
 
+
+
   # netcdf
   library(package = "ncdf4")
   library(package = "ncdf4.helpers")
@@ -96,9 +98,9 @@ Together, we use these two future cases to reprsent upper and lower bounds of li
 
   root_url = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/ANNUAL/tasmin/"
   root_url = "~/GitHub/FEW_CROP_MIGRAGTION/"
-  
+
   file_url = str_c(root_url,
-                   "LOCA_NGP_tasmin_allensembles_allscenarios_2006-2099_30Y_MEAN_ANNUAL_MIN.RData",
+                   "LOCA_NGP_tasmin_allensembles_allscenarios_2006-2099_30Y_MEAN_ANNUAL_MIN_05Y_PRODUCT_INTERVAL.RData",
                    str_c = "")
 
   load(file_url)
@@ -195,7 +197,7 @@ classes_table = c("1a",
 
 class2L_cols  = c("#D1D0FE", #  "1a",
                   "#BBBCF0", #  "1b",
-                  "#000516", #  "2a",
+                  "#A1A1D4", #  "2a",
                   "#E8A5E8", #  "2b",
                   "#DB86E9", #  "3a",
                   "#C772D6", #  "3b",
@@ -220,19 +222,26 @@ class2L_cols  = c("#D1D0FE", #  "1a",
                   "#A16529", #  "13a",
                   "#BA8554") #  "13b"      
 
+
+
 class2L_hi = seq(from = -55,
                  to   =  70,
                  by   =   5)
 
 class2L_lo = class2L_hi - 5.
 
+
+class2L_cols = as.array(class2L_cols)
+names(class2L_cols) = as_factor(classes_table)
+
 ```
 
 
 # 7 Loop Through Decades
 
-```{r}
+#7a Minimum Temperatures for Ensembles and Means
 
+```{r}
 decade_string = decade_strings[6]
 for (decade_string in decade_strings)
 {
@@ -247,8 +256,7 @@ for (decade_string in decade_strings)
         mymap = ggplot(data   =   tmin_sub)  +
 
                        aes(x     = lon,
-                           y     = lat,
-                           color = Min_Temp) +
+                           y     = lat) +
 
                        facet_grid(cols = vars(scenario)) +
 
@@ -284,12 +292,10 @@ for (decade_string in decade_strings)
                       geom_polygon(data  = canadian_provinces,
                                     mapping = aes(x     =   long,
                                                   y     =    lat,
+                                                  color =  Min_Temp,
                                                   group =  group),
                                     fill  = NA,
                                     color = "black")  +
-
-
-
 
                       geom_contour(data    = ngp_regions,
                                     alpha   =  1,
@@ -302,45 +308,141 @@ for (decade_string in decade_strings)
                                                   color = NA,
                                                   z     = Ecoregions_Mask)) +
 
-                       scale_colour_gradientn(breaks = class2L_hi,
-                                              colors = class2L_cols,
-                                              guide  = guide_colourbar(title     = "°F",
-                                                                       barheight = 15)) +
-          
-                        
-
-
-
-                        geom_contour(data   = tmin_ens_mean,
-                                    alpha  = 1,
-                                    breaks =class2L_hi,
-                                    colors = class2L_cols,
+                       scale_color_gradientn(breaks = class2L_hi,
+                                             colors = class2L_cols,
+                                             minor_breaks = NULL,
+                                             limits       = c(min(class2L_hi)-2.5,
+                                                              max(class2L_hi))+2.5,
+                                             guide  = guide_colourbar(title     = "°F",
+                                                                      barheight = 15)) +
+                        geom_contour(data   = tmin_sub,
+                                    alpha  = 0.1,
                                     mapping = aes(x     = lon,
                                                   y     = lat,
                                                   color = ..level..,
-                                                  z     = Min_Temp)) +
-
-                        geom_contour(data   = tmin_sub,
-                                    alpha  = 0.1,
-                                    breaks =class2L_hi,
-                                    colors = class2L_cols,                                    mapping = aes(x     = lon,
-                                                  y     = lat,
-                                                  color = ..level..,
                                                   group = ensemble,
-                                                  z     = Min_Temp))
+                                                  z     = Min_Temp)) +
+                        geom_contour(data     = tmin_ens_mean,
+                                     alpha   = 1,
+                                     mapping = aes(x     = lon,
+                                                   y     = lat,
+                                                   color = ..level..,
+                                                   z     = Min_Temp))
+
+
+        print(mymap)
+
+
+        ggsave(filename = str_c("./",
+                                decade_string,
+                                "_LOCA_MINTEMPS_MAP.png",
+                                sep = ""),
+               plot = mymap,
+               device = "png",
+             width = 10.5, height = 5.75)
+
+
+}          
+
+
+```
 
 
 
 
 
 
+#7b USDA Growing Zones for the Ensemble Mean
 
 
 
+```{r}
+
+decade_string = decade_strings[9]
+for (decade_string in decade_strings)
+{
+
+        tmin_sub  = tmin %>% filter(time_bnds == decade_string)
+
+        tmin_ens_mean = tmin_sub %>% group_by(lat,
+                                              lon,
+                                              scenario) %>%
+                                     summarize(Min_Temp = mean(Min_Temp))
+
+        tmin_ens_mean$Zone = "NA"
+
+
+        for (cat in 1:length(classes_table)) {
+
+          tmin_ens_mean$Zone[(tmin_ens_mean$Min_Temp >  class2L_lo[cat]) &
+                             (tmin_ens_mean$Min_Temp <= class2L_hi[cat])]  = classes_table[cat]
+
+        }
+        tmin_ens_mean$Zone[tmin_ens_mean$Zone == "NA"] = NA
+
+        tmin_ens_mean$Zone = as_factor(tmin_ens_mean$Zone)
+
+
+        mymap = ggplot(data   =   tmin_ens_mean)  +
+
+               aes(x     = lon,
+                   y     = lat) +
+
+               facet_grid(cols = vars(scenario)) +
+
+               theme_bw() +
+
+               theme(strip.background = element_rect(fill=NA),
+                     aspect.ratio     = 1)+
+
+               labs(title    = "LOCA Climate Ensemble Analyses",
+                    subtitle = str_c(decade_string,
+                                     "Ensemble Mean USDA Plant Heartiness Zones",
+                                     sep = " ")) +
+
+               xlab(label = "Longitude") +
+
+               ylab(label = "Latitude") +
+
+               guides(fill=guide_legend(ncol=2)) +
 
 
 
+               coord_cartesian(xlim=c(min(longitude), max(longitude)),
+                               ylim=c(min(latitude),  max(latitude)) )  +
 
+              # xlim(min(Longitude), max(Longitude)) +
+              # ylim(min(Latitude), max(Latitude)) +
+
+               scale_fill_manual(values = class2L_cols,
+                                 breaks = classes_table,
+                                 drop   = TRUE) +
+
+               geom_raster(data = tmin_ens_mean,
+                           mapping = aes(x     = lon,
+                                         y     = lat,
+                                         fill = Zone)) +
+
+               geom_polygon(data  = usa_data,
+                                    mapping = aes(x     =   long,
+                                                  y     =    lat,
+                                                  group =  group),
+                                    fill  = NA,
+                                    color = "black")  +
+
+               geom_polygon(data  = water_data,
+                                    mapping = aes(x     =   long,
+                                                  y     =    lat,
+                                                  group =  group),
+                                    fill  = NA,
+                                    color = "black")  +
+
+               geom_polygon(data  = canadian_provinces,
+                                    mapping = aes(x     =   long,
+                                                  y     =    lat,
+                                                  group =  group),
+                                    fill  = NA,
+                                    color = "black")
 
 
 
@@ -357,15 +459,6 @@ for (decade_string in decade_strings)
 
 
 }          
-
-
-```
-
-
-
-
-```{r}
-
 
 
 ```

@@ -8,14 +8,14 @@ setfileoption("nc","Format","NetCDF4")
   period     = 30
   start_year = 1950
   end_year   = 2099
-  interval   = 5
+  interval   = 1
 
   print(2005 - period + 1 - start_year + 1)
 
 
   outfile = "/maelstrom2/LOCA_GRIDDED_ENSEMBLES/LOCA_NGP/climatology/ANNUAL/tasmin/" + \
             "LOCA_NGP_tasmin_allensembles_allscenarios_2006-2099_" + sprinti("%0.2i", period) + \
-            "Y_MEAN_ANNUAL_MIN"+ ".nc"
+            "Y_MEAN_ANNUAL_MIN_"+sprinti("%0.2i", interval)+"Y_PRODUCT_INTERVAL"+ ".nc"
 
 
     ensemble = (/ "ACCESS1-0_r1i1p1",  \
@@ -45,6 +45,7 @@ setfileoption("nc","Format","NetCDF4")
                    "MRI-CGCM3_r1i1p1",  \
                    "NorESM1-M_r1i1p1",  \
                    "bcc-csm1-1-m_r1i1p1" /)
+
 
 
   n_ens = dimsizes(ensemble)
@@ -265,9 +266,9 @@ do ens = 0, n_ens-1
         print(ensemble(ens) + " :: " +   sprinti("%0.3i", i)+ " * " + sprinti("%2i", mode(i)) + " - (" + year_start(i) +"-"+ year_end(i)+  ") " + min(capture_indexes_hist) + "-" + max(capture_indexes_hist) +"  ::  " + min(capture_indexes_futr) + "-" + max(capture_indexes_futr) )
 
 
-        inarr_hist = short2flt(f_hist->$v_hist$(capture_indexes_hist,:,:))
-        inarr_rcp4 = short2flt(f_rcp4->$v_rcp4$(capture_indexes_futr,:,:))
-        inarr_rcp8 = short2flt(f_rcp8->$v_rcp8$(capture_indexes_futr,:,:))
+        inarr_hist = reshape(short2flt(f_hist->$v_hist$(capture_indexes_hist,:,:)), (/  dimsizes(capture_indexes_hist),  n_lat, n_lon   /)  )
+        inarr_rcp4 = reshape(short2flt(f_rcp4->$v_rcp4$(capture_indexes_futr,:,:)), (/  dimsizes(capture_indexes_futr),  n_lat, n_lon   /)  )
+        inarr_rcp8 = reshape(short2flt(f_rcp8->$v_rcp8$(capture_indexes_futr,:,:)), (/  dimsizes(capture_indexes_futr),  n_lat, n_lon   /)  )
 
         inarr = array_append_record (inarr_hist, inarr_rcp4, 0)
 

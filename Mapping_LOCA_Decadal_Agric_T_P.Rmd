@@ -1,11 +1,13 @@
 ---
 title: "Mapping Loca"
-output: html_notebook
+output:
+  html_notebook: default
+  pdf_document: default
 ---
 
 # 1 Introduction
 
-This script processes annual LOCA and GHCN temperature and rainfall.
+This script processes annual LOCA and GHCN temperature and rainfall. 
 
 The climate model output comes from the USGS [LOCA](http://loca.ucsd.edu) Downscaled Analyses from the CMIP5 climate model runs from 27 models.  (There were a total of 32 models used for these analyses but we are only using the model runs that include maximum/miniumum temperature, and precipitation.)
 
