@@ -16,16 +16,16 @@ setfileoption("nc","Format","NetCDF4")
     variable@description   = "Average Monthly Mean Temperature"
     variable@units         = "degC"
     variable@standard_name = "air_temperature"
-    variable@cell_methods  = "ensemble: mean   time: mean within month   time: mean by calendar months"
+    variable@cell_methods  = "time: mean within month  ensemble: mean    time: mean by calendar months"
     first_ag               = "CDO_MONTHLY_AVERAGES"
 
 
-      variable               = "pr"
-      variable@description   = "Average Monthly Total Rainfall"
-      variable@units         = "kg m-2"
-      variable@standard_name = "precipitation_amount"
-      variable@cell_methods  = "ensemble: mean   time: sum within month   time: mean by calendar months"
-      first_ag               = "CDO_MONTLY_TOTAL"
+    ;  variable               = "pr"
+  ;    variable@description   = "Average Monthly Total Rainfall"
+  ;    variable@units         = "kg m-2"
+;      variable@standard_name = "precipitation_amount"
+;      variable@cell_methods  = "time: sum within month  ensemble: mean time: mean by calendar months"
+;      first_ag               = "CDO_MONTHLY_TOTAL"
 
 
 
