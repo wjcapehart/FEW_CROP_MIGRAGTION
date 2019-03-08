@@ -211,9 +211,17 @@ do ens = 0, n_ens-1
   f_rcp4 = addfile(file_rcp4,"r")
   f_rcp8 = addfile(file_rcp8,"r")
 
-  v_hist = variable+"_ACCESS1-0_r1i1p1_historical"
-  v_rcp4 = variable+"_ACCESS1-0_r1i1p1_rcp45"
-  v_rcp8 = variable+"_ACCESS1-0_r1i1p1_rcp85"
+  if (variable .eq. "pr") then
+    v_hist = variable+"_ACCESS1-0_r1i1p1_historical"
+    v_rcp4 = variable+"_ACCESS1-0_r1i1p1_rcp45"
+    v_rcp8 = variable+"_ACCESS1-0_r1i1p1_rcp85"
+  else
+    v_hist = "tasmax_ACCESS1-0_r1i1p1_historical"
+    v_rcp4 = "tasmax_ACCESS1-0_r1i1p1_rcp45"
+    v_rcp8 = "tasmax_ACCESS1-0_r1i1p1_rcp85"
+  end if
+
+
 
   packopt = True
     packopt@scale_factor = 0.1
